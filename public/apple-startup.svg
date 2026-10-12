@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 2000">
+  <rect width="1000" height="2000" fill="#171817"/>
+  <g transform="translate(374 760)">
+    <path fill="#f3f0e8" d="M0 0h104v104H0z"/>
+    <path fill="#f3f0e8" d="M148 0h104v104H148z"/>
+    <path fill="#f3f0e8" d="M0 148h104v104H0z"/>
+    <path fill="#f3f0e8" d="M148 148h104v104H148z"/>
+  </g>
+  <path stroke="#77766f" d="M320 1080h360"/>
+  <text x="500" y="1155" fill="#f3f0e8" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" letter-spacing="9" text-anchor="middle">ELEMENTAL</text>
+  <text x="500" y="1204" fill="#a6a49d" font-family="monospace" font-size="15" letter-spacing="4" text-anchor="middle">PLANNER / OFFLINE READY</text>
+  <path fill="#304ffe" d="M484 1292h32v4h-32z"/>
+</svg>

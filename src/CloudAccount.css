@@ -1,0 +1,67 @@
+.cloud-account {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #171817;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cloud-status,
+.cloud-account-button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #17181735;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+.cloud-status-online { color: #1c5d37; }
+.cloud-status-offline { color: #a13c20; }
+.cloud-status-error { color: #a13c20; }
+
+.cloud-account-button { cursor: pointer; }
+.cloud-account-button:hover:not(:disabled) { background: #1718170d; }
+.cloud-account-button:disabled { color: #1718177a; cursor: not-allowed; }
+
+.cloud-account-error {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  display: flex;
+  width: min(350px, calc(100vw - 32px));
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  color: #fffaf2;
+  background: #171817;
+  border: 1px solid #a13c20;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.cloud-account-error button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 1px;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .cloud-status span,
+  .cloud-account-button span { display: none; }
+  .cloud-status,
+  .cloud-account-button { width: 32px; padding: 0; }
+}

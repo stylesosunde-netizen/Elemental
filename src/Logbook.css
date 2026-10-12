@@ -1,0 +1,277 @@
+.logbook {
+  --log-ink: #171817;
+  --log-paper: #f3f0e8;
+  --log-surface: #fbfaf6;
+  --log-line: #77766f;
+  --log-muted: #aaa99f;
+  --log-amber: #CCFF00;
+  min-width: 0;
+  padding: clamp(17px, 3vw, 34px);
+  color: var(--log-paper);
+  background: var(--log-ink);
+  border: 1px solid #080908;
+  box-shadow: 5px 5px 0 #17181728;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+.logbook-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #ffffff45;
+}
+
+.logbook-kicker,
+.logbook-filter > span,
+.logbook-summary article > span,
+.logbook-summary small,
+.logbook-footnote,
+.logbook-table th,
+.logbook-form label,
+.logbook-form legend,
+.logbook-upload-label > span:first-of-type {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .09em;
+}
+
+.logbook-kicker { display: flex; align-items: center; gap: 8px; color: #c5c4bb; }
+.logbook-live-dot { width: 7px; height: 7px; background: var(--log-amber); box-shadow: 0 0 8px #CCFF0080; }
+.logbook-heading h1 { margin: 9px 0 0; color: var(--log-paper); font-family: inherit; font-size: clamp(37px, 6vw, 62px); font-weight: 900; letter-spacing: -.09em; line-height: .95; }
+.logbook-heading-period { color: var(--log-amber); }
+.logbook-heading p { margin-top: 9px; color: #aaa99f; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 12px; }
+.logbook-heading-actions { display: flex; align-items: end; gap: 9px; }
+.logbook-filter { display: grid; gap: 5px; color: #c5c4bb; }
+.logbook-filter select {
+  min-width: 77px;
+  height: 36px;
+  padding: 0 9px;
+  color: var(--log-paper);
+  background: #242523;
+  border: 1px solid #686861;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 11px;
+}
+.logbook-export-button,
+.logbook-add-button,
+.logbook-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--log-ink);
+  background: var(--log-amber);
+  border: 1px solid var(--log-amber);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .015em;
+  white-space: nowrap;
+}
+.logbook-export-button:hover,
+.logbook-add-button:hover,
+.logbook-primary-button:hover { background: #f0ff9a; border-color: #f0ff9a; }
+
+.logbook-year-overview { margin: 20px 0 8px; }
+.logbook-year-overview > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 9px;
+  color: #c5c4bb;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .09em;
+}
+.logbook-year-overview > header strong { color: var(--log-amber); font-size: 13px; }
+.logbook-year-overview > header small { color: #85857d; font-size: 8px; font-weight: 500; letter-spacing: 0; }
+.logbook-quarter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid #77766f; }
+.logbook-quarter-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  padding: 12px;
+  color: var(--log-paper);
+  text-align: left;
+  background: #20211f;
+  border: 0;
+  border-right: 1px solid #77766f;
+  border-radius: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.logbook-quarter-card:last-child { border-right: 0; }
+.logbook-quarter-card.active { background: #2a2b27; box-shadow: inset 0 3px var(--log-amber); }
+.logbook-quarter-card:hover { background: #30312d; }
+.logbook-quarter-card > span { display: grid; min-width: 0; gap: 4px; }
+.logbook-quarter-card .logbook-quarter-card-heading { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid #4b4c46; }
+.logbook-quarter-card-heading > strong { color: var(--log-amber); font-size: 14px; }
+.logbook-quarter-card small { color: #92928a; font-size: 7px; font-weight: 750; letter-spacing: .06em; }
+.logbook-quarter-card > span > strong { overflow: hidden; font-size: 11px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.logbook-quarter-card .logbook-quarter-net > strong { color: var(--log-amber); }
+.logbook-full-year-card { background: #292a26; }
+
+.logbook-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 22px 0 25px;
+  border: 1px solid #77766f;
+}
+.logbook-summary article { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 15px 14px 13px; border-right: 1px solid #77766f; }
+.logbook-summary article:last-child { border-right: 0; }
+.logbook-summary article > span { color: #c5c4bb; line-height: 1.3; }
+.logbook-summary strong { color: var(--log-amber); font-size: clamp(17px, 2.3vw, 24px); font-weight: 750; letter-spacing: -.07em; line-height: 1; text-shadow: 0 0 12px #CCFF0030; }
+.logbook-summary .logbook-net-profit strong { color: var(--log-amber); }
+.logbook-summary small { color: #85857d; font-size: 8px; }
+.logbook-storage-error { margin: 0 0 15px; padding: 9px 11px; color: #ffe1d8; background: #502b23; border: 1px solid #bd725e; font-size: 11px; }
+
+.logbook-ledger-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 14px; border-bottom: 1px solid #77766f; }
+.logbook-tabs { display: flex; gap: 3px; }
+.logbook-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #aaa99f;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+.logbook-tabs button span { color: #7f8078; }
+.logbook-tabs button.active { color: var(--log-paper); background: #272825; border-color: #77766f; box-shadow: inset 0 2px var(--log-amber); }
+.logbook-tabs button.active span { color: var(--log-amber); }
+.logbook-add-button { min-height: 31px; margin-bottom: 5px; font-size: 9px; }
+
+.logbook-table-scroll { width: 100%; overflow-x: auto; border: 1px solid #77766f; border-top: 0; }
+.logbook-table { width: 100%; min-width: 1140px; border-collapse: collapse; table-layout: auto; text-align: left; }
+.logbook-table th { height: 34px; padding: 0 9px; color: #c5c4bb; background: #242523; border-right: 1px solid #4d4e48; border-bottom: 1px solid #77766f; font-size: 8px; white-space: nowrap; }
+.logbook-table td { max-width: 180px; height: 43px; padding: 5px 9px; color: #e9e7de; border-right: 1px solid #3d3e39; border-bottom: 1px solid #3d3e39; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 10px; white-space: nowrap; }
+.logbook-table tbody tr:last-child td { border-bottom: 0; }
+.logbook-table th:last-child,
+.logbook-table td:last-child { border-right: 0; }
+.logbook-table .logbook-number { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.logbook-table .logbook-concept { overflow: hidden; text-overflow: ellipsis; }
+.logbook-table .logbook-money { font-variant-numeric: tabular-nums; text-align: right; }
+.logbook-table .logbook-total { color: var(--log-amber); font-weight: 750; }
+.logbook-attachment { display: inline-flex; max-width: 150px; align-items: center; gap: 4px; overflow: hidden; color: var(--log-amber); text-decoration: none; text-overflow: ellipsis; }
+.logbook-attachment:hover { text-decoration: underline; }
+.logbook-no-attachment { color: #77766f; }
+.logbook-row-actions { display: flex; align-items: center; gap: 3px; }
+.logbook-row-actions button,
+.logbook-icon-button { display: grid; width: 28px; height: 28px; place-items: center; color: #aaa99f; background: transparent; border: 1px solid transparent; border-radius: 0; }
+.logbook-row-actions button:hover,
+.logbook-icon-button:hover { color: var(--log-amber); border-color: #77766f; }
+.logbook-table .logbook-empty { height: 164px; color: #aaa99f; text-align: center; }
+.logbook-empty > * { display: block; margin: 0 auto 8px; }
+.logbook-empty strong { color: var(--log-paper); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 10px; letter-spacing: .08em; }
+.logbook-empty span { color: #92928a; font-size: 11px; }
+.logbook-footnote { display: flex; justify-content: space-between; gap: 10px; padding-top: 11px; color: #8e8f87; font-size: 8px; }
+
+.logbook-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: #10110fbd; }
+.logbook-form,
+.logbook-confirm { width: min(600px, 100%); max-height: min(90dvh, 760px); padding: 22px; overflow-y: auto; color: var(--log-paper); background: var(--log-ink); border: 1px solid #77766f; border-top: 4px solid var(--log-amber); box-shadow: 7px 7px 0 #0006; }
+.logbook-form { width: min(900px, 100%); max-height: min(94dvh, 960px); }
+.logbook-form-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.logbook-form-heading h2,
+.logbook-confirm h2 { margin: 7px 0 0; color: var(--log-paper); font-family: inherit; font-size: 24px; font-weight: 850; letter-spacing: -.06em; }
+.logbook-kind-switch { display: flex; flex-wrap: wrap; gap: 17px; margin: 0 0 18px; padding: 12px; border: 1px solid #565750; }
+.logbook-kind-switch legend { padding: 0 5px; color: #aaa99f; }
+.logbook-kind-switch label { display: flex; align-items: center; gap: 6px; color: #eceae1; font-size: 9px; }
+.logbook-kind-switch input { accent-color: var(--log-amber); }
+.logbook-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 12px; }
+.logbook-form-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #565750; }
+.logbook-form-section > h3,
+.logbook-deductibility-heading h3 { margin: 0 0 12px; color: var(--log-amber); font-family: inherit; font-size: 9px; font-weight: 850; letter-spacing: .1em; }
+.logbook-form-section .logbook-form-grid { gap: 13px 14px; }
+.logbook-form label { display: grid; gap: 6px; color: #c5c4bb; font-size: 8px; }
+.logbook-form input:not([type="file"]):not([type="radio"]):not([type="checkbox"]),
+.logbook-form select { width: 100%; height: 36px; padding: 0 9px; color: var(--log-paper); background: #242523; border: 1px solid #686861; border-radius: 0; box-sizing: border-box; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 12px; }
+.logbook-form input:focus,
+.logbook-form select:focus { border-color: var(--log-amber); outline-color: var(--log-amber); }
+.logbook-form input:disabled,
+.logbook-form select:disabled { color: #8e8f87; background: #1d1e1c; cursor: not-allowed; }
+.logbook-manual-override { display: flex; align-items: center; gap: 5px; color: #92928a; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 9px; font-weight: 500; letter-spacing: 0; }
+.logbook-manual-override input[type="checkbox"] { width: 13px; height: 13px; margin: 0; accent-color: var(--log-amber); }
+.logbook-wide { grid-column: 1 / -1; }
+.logbook-total-preview { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; padding: 0 10px; background: #242523; border: 1px solid #686861; box-sizing: border-box; }
+.logbook-total-preview span { color: #c5c4bb; font-size: 8px; font-weight: 750; letter-spacing: .07em; }
+.logbook-total-preview strong { color: var(--log-amber); font-size: 15px; }
+.logbook-invoice-total { border-color: var(--log-amber); }
+.logbook-deductibility { padding: 13px; background: #20211f; border: 1px solid #565750; }
+.logbook-deductibility-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.logbook-deductibility-heading h3 { margin-bottom: 12px; }
+.logbook-deductibility-heading > span { color: #85857d; font-size: 7px; font-weight: 750; letter-spacing: .08em; }
+.logbook-deductibility .logbook-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.logbook-audit-alert { margin: 12px 0 0; padding: 9px 11px; color: var(--log-amber); background: #303222; border-left: 3px solid var(--log-amber); font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 11px; }
+.logbook-upload-label > span:first-of-type { display: inline; margin-left: 5px; color: #85857d; font-size: 7px; }
+.logbook-upload { position: relative; display: flex; min-height: 68px; align-items: center; gap: 12px; padding: 8px 12px; color: var(--log-amber); background: #20211f; border: 1px dashed #77766f; font-size: 10px; letter-spacing: 0; }
+.logbook-upload:hover,
+.logbook-upload:focus-within { border-color: var(--log-amber); }
+.logbook-upload > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logbook-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.logbook-upload-preview { width: 46px; height: 48px; object-fit: cover; border: 1px solid #686861; }
+.logbook-attachment-preview { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: #c5c4bb; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 10px; }
+.logbook-attachment-preview > span { display: flex; min-width: 0; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; }
+.logbook-attachment-preview button { padding: 5px 7px; color: #ff9b80; background: transparent; border: 1px solid #686861; font: inherit; font-size: 8px; }
+.logbook-error { grid-column: 1 / -1; margin: -5px 0 0; color: #ff9b80; font-size: 10px; }
+.logbook-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 14px; border-top: 1px solid #565750; }
+.logbook-secondary-button,
+.logbook-danger-button { min-height: 34px; padding: 0 12px; color: #d6d4cb; background: transparent; border: 1px solid #686861; border-radius: 0; font-family: inherit; font-size: 9px; font-weight: 750; }
+.logbook-secondary-button:hover { border-color: var(--log-paper); }
+.logbook-danger-button { color: white; background: #8c372a; border-color: #8c372a; }
+.logbook-danger-button:hover { background: #a64232; }
+.logbook-confirm { position: relative; width: min(410px, 100%); }
+.logbook-confirm > .logbook-icon-button { position: absolute; top: 15px; right: 15px; }
+.logbook-confirm h2 { margin-top: 9px; }
+.logbook-confirm p { margin-top: 9px; color: #aaa99f; font-family: Inter, "Helvetica Neue", Arial, sans-serif; font-size: 12px; }
+
+@media (max-width: 820px) {
+  .logbook-heading { align-items: start; flex-direction: column; }
+  .logbook-heading-actions { width: 100%; flex-wrap: wrap; }
+  .logbook-summary article { padding-right: 9px; padding-left: 9px; }
+  .logbook-quarter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .logbook-quarter-card:nth-child(even) { border-right: 0; }
+  .logbook-quarter-card:nth-child(-n+4) { border-bottom: 1px solid #77766f; }
+  .logbook-full-year-card { grid-column: 1 / -1; border-right: 0; }
+}
+
+@media (max-width: 560px) {
+  .logbook { padding: 15px 10px; }
+  .logbook-heading-actions { align-items: end; gap: 6px; }
+  .logbook-filter select { min-width: 60px; }
+  .logbook-export-button { flex: 1; padding: 0 6px; font-size: 8px; }
+  .logbook-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .logbook-summary article:nth-child(even) { border-right: 0; }
+  .logbook-summary article:nth-child(-n+4) { border-bottom: 1px solid #77766f; }
+  .logbook-year-overview > header { flex-wrap: wrap; gap: 5px 8px; }
+  .logbook-year-overview > header small { flex-basis: 100%; }
+  .logbook-quarter-card { gap: 8px; padding: 9px; }
+  .logbook-ledger-toolbar { align-items: center; }
+  .logbook-tabs { gap: 0; }
+  .logbook-tabs button { gap: 5px; padding: 0 6px; font-size: 7px; }
+  .logbook-add-button { gap: 4px; padding: 0 6px; font-size: 7px; }
+  .logbook-table { min-width: 1450px; }
+  .logbook-footnote { font-size: 7px; }
+  .logbook-form { padding: 17px 13px; }
+}
+
+@media (max-width: 390px) {
+  .logbook-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .logbook-wide { grid-column: auto; }
+  .logbook-deductibility .logbook-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .logbook-total-preview { min-height: 42px; }
+  .logbook-export-button { font-size: 7px; }
+}
