@@ -756,6 +756,13 @@ select:focus-visible,
 .item-card.is-fire { border-left-color: var(--fire); }
 .item-card.is-air { border-left-color: var(--air); }
 .item-card.is-event {
+  display: flex;
+  height: auto;
+  min-height: fit-content;
+  flex: 0 0 auto;
+  flex-direction: column;
+  padding-bottom: 12px;
+  overflow: visible;
   color: var(--ink);
   background: #e8e6df;
   border: 1px solid var(--ink);
@@ -1083,6 +1090,10 @@ select:focus-visible,
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
 }
+.dragging-to-deck .calendar-scroll {
+  overflow-x: hidden !important;
+  scroll-snap-type: none;
+}
 .calendar-grid {
   min-height: var(--planner-panel-height);
   align-items: stretch;
@@ -1111,6 +1122,10 @@ select:focus-visible,
 }
 
 .day-column .item-card.is-event {
+  height: auto;
+  min-height: fit-content;
+  padding-bottom: 12px;
+  overflow: visible;
   color: var(--ink);
   background: var(--signal);
   border-color: var(--ink);

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   KeyboardSensor,
@@ -436,6 +436,7 @@ function App() {
   const [toast, setToast] = useState('')
   const [clock, setClock] = useState(() => new Date())
   const [undoItems, setUndoItems] = useState(null)
+  const [isDraggingToDeck, setIsDraggingToDeck] = useState(false)
   const [timelineBefore, setTimelineBefore] = useState(0)
   const [timelineAfter, setTimelineAfter] = useState(0)
   const [logCaptureId, setLogCaptureId] = useState(null)
@@ -451,6 +452,11 @@ function App() {
   const calendarScrollRef = useRef(null)
   const pendingTimelineAdjustment = useRef(null)
   const pendingCalendarScrollRestore = useRef(null)
+  const preservePlannerDateOnOpen = useRef(false)
+  const dragScrollFrame = useRef(null)
+  const dragScrollDirection = useRef(0)
+  const dragScrollTimestamp = useRef(0)
+  const dragPointer = useRef(null)
   const isLoadingTimeline = useRef(false)
   const syncData = useMemo(() => ({ tasks: items, notes, xp, history, logbook }), [items, notes, xp, history, logbook])
   const syncSetters = useMemo(() => ({ tasks: setItems, notes: setNotes, xp: setXp, history: setHistory, logbook: setLogbook }), [])
@@ -499,7 +505,7 @@ function App() {
     return () => window.clearInterval(timer)
   }, [])
 
-  function showTimelineAt(date, centerDate = false) {
+  const showTimelineAt = useCallback((date, centerDate = false) => {
     const start = startOfDay(date)
     const targetDate = dateKey(start)
     setWeekStart(start)
@@ -519,11 +525,96 @@ function App() {
         calendarScrollRef.current?.scrollTo({ left: 0 })
       }
     })
-  }
+  }, [])
 
-  function goToToday() {
+  const goToToday = useCallback(() => {
     showTimelineAt(new Date(), true)
-  }
+  }, [showTimelineAt])
+
+  const stopDragAutoScroll = useCallback(() => {
+    dragScrollDirection.current = 0
+    dragPointer.current = null
+    dragScrollTimestamp.current = 0
+    setIsDraggingToDeck(false)
+    if (dragScrollFrame.current !== null) {
+      window.cancelAnimationFrame(dragScrollFrame.current)
+      dragScrollFrame.current = null
+    }
+  }, [])
+
+  const handleDragMove = useCallback((event) => {
+    const activator = event.activatorEvent
+    const calendar = calendarScrollRef.current
+    const taskPool = document.querySelector('.task-pool')
+    if (!calendar || !activator || !('clientX' in activator) || !('clientY' in activator)) {
+      dragScrollDirection.current = 0
+      return
+    }
+
+    const delta = event.delta
+    const pointer = { x: activator.clientX + delta.x, y: activator.clientY + delta.y }
+    dragPointer.current = pointer
+    const calendarBounds = calendar.getBoundingClientRect()
+    const deckBounds = taskPool?.getBoundingClientRect()
+    const overDeck = Boolean(deckBounds &&
+      pointer.x >= deckBounds.left && pointer.x <= deckBounds.right &&
+      pointer.y >= deckBounds.top && pointer.y <= deckBounds.bottom)
+    setIsDraggingToDeck(overDeck)
+
+    if (overDeck || pointer.y < calendarBounds.top || pointer.y > calendarBounds.bottom) {
+      dragScrollDirection.current = 0
+      return
+    }
+
+    const edgeWidth = Math.min(20, calendarBounds.width * 0.05)
+    dragScrollDirection.current = pointer.x <= calendarBounds.left + edgeWidth
+      ? -1
+      : pointer.x >= calendarBounds.right - edgeWidth ? 1 : 0
+  }, [])
+
+  useEffect(() => {
+    const scrollAtEdge = (timestamp) => {
+      const calendar = calendarScrollRef.current
+      const pointer = dragPointer.current
+      if (!calendar || !pointer || !dragScrollDirection.current) {
+        dragScrollFrame.current = null
+        dragScrollTimestamp.current = 0
+        return
+      }
+
+      const taskPool = document.querySelector('.task-pool')
+      const deckBounds = taskPool?.getBoundingClientRect()
+      const overDeck = Boolean(deckBounds &&
+        pointer.x >= deckBounds.left && pointer.x <= deckBounds.right &&
+        pointer.y >= deckBounds.top && pointer.y <= deckBounds.bottom)
+      if (overDeck) {
+        dragScrollDirection.current = 0
+        setIsDraggingToDeck(true)
+        dragScrollFrame.current = null
+        dragScrollTimestamp.current = 0
+        return
+      }
+
+      const elapsed = dragScrollTimestamp.current
+        ? Math.min(timestamp - dragScrollTimestamp.current, 32)
+        : 0
+      dragScrollTimestamp.current = timestamp
+      calendar.scrollLeft += dragScrollDirection.current * elapsed * 0.18
+      dragScrollFrame.current = window.requestAnimationFrame(scrollAtEdge)
+    }
+
+    if (dragScrollDirection.current && dragScrollFrame.current === null) {
+      dragScrollTimestamp.current = 0
+      dragScrollFrame.current = window.requestAnimationFrame(scrollAtEdge)
+    }
+    return () => {
+      if (dragScrollFrame.current !== null && !dragScrollDirection.current) {
+        window.cancelAnimationFrame(dragScrollFrame.current)
+        dragScrollFrame.current = null
+        dragScrollTimestamp.current = 0
+      }
+    }
+  }, [isDraggingToDeck])
 
   function navigateTimeline(direction) {
     const scroller = calendarScrollRef.current
@@ -584,6 +675,15 @@ function App() {
     media.addEventListener('change', updateMobile)
     return () => media.removeEventListener('change', updateMobile)
   }, [])
+
+  useEffect(() => {
+    if (activeView !== 'week') return
+    if (preservePlannerDateOnOpen.current) {
+      preservePlannerDateOnOpen.current = false
+      return
+    }
+    goToToday()
+  }, [activeView, goToToday])
 
   useEffect(() => { localStorage.setItem(TASKS_KEY, JSON.stringify(items)) }, [items])
   useEffect(() => { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)) }, [notes])
@@ -799,6 +899,7 @@ function App() {
   }
 
   function handleDragEnd(event) {
+    stopDragAutoScroll()
     const itemId = event.active.data.current?.itemId
     const target = event.over?.data.current
     if (!itemId || !target) return
@@ -1000,13 +1101,23 @@ function App() {
   const month = clock.toLocaleDateString([], { month: 'short' }).replace('.', '').toUpperCase()
 
   return (
-    <DndContext sensors={sensors} collisionDetection={plannerCollisionDetection} onDragEnd={handleDragEnd}>
-      <div className={`app-shell ${focusMode ? 'focus-mode' : ''}`}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={plannerCollisionDetection}
+      autoScroll={false}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      onDragCancel={stopDragAutoScroll}
+    >
+      <div className={`app-shell ${focusMode ? 'focus-mode' : ''} ${isDraggingToDeck ? 'dragging-to-deck' : ''}`}>
         <main className="main-area">
           <header className="topbar">
             <div className="topbar-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div><span>elemental</span></div>
             <nav className="top-navigation" aria-label="Main navigation">
-              <button className={activeView === 'week' ? 'active' : ''} aria-current={activeView === 'week' ? 'page' : undefined} onClick={() => setActiveView('week')}>Planner</button>
+              <button className={activeView === 'week' ? 'active' : ''} aria-current={activeView === 'week' ? 'page' : undefined} onClick={() => {
+                if (activeView === 'week') goToToday()
+                else setActiveView('week')
+              }}>Planner</button>
               <button className={activeView === 'month' ? 'active' : ''} aria-current={activeView === 'month' ? 'page' : undefined} onClick={() => setActiveView('month')}>Month</button>
               <button className={activeView === 'notes' ? 'active' : ''} aria-current={activeView === 'notes' ? 'page' : undefined} onClick={() => setActiveView('notes')}>Ideas Inbox</button>
               <button className={activeView === 'logbook' ? 'active' : ''} aria-current={activeView === 'logbook' ? 'page' : undefined} onClick={() => setActiveView('logbook')}>Logbook</button>
@@ -1193,7 +1304,7 @@ function App() {
             {activeView === 'month' && <>
               <div className="page-heading month-heading"><div><div className="eyebrow"><span className="eyebrow-mark"><span /><span /><span /><span /></span> A WIDER VIEW</div><h1>Monthly rhythm.</h1><p className="heading-subtitle">See the shape of your commitments at a glance.</p></div><div className="heading-actions"><button className="primary-button" onClick={createItem}><Plus size={16} /> New Task or Event</button></div></div>
               <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
-              <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed')} onSelectDate={(day) => { showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
+              <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed')} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
               <div className="month-hint"><span>◆ Fixed event</span><span>• Flexible task</span><span>Choose a date to open its week</span></div>
             </>}
 
