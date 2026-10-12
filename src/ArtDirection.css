@@ -428,6 +428,9 @@ select:focus-visible,
 
 .planner-layout {
   grid-template-columns: clamp(224px, 24vw, 286px) minmax(0, 1fr);
+  grid-template-areas:
+    "clock log"
+    "deck calendar";
   align-items: start;
   gap: 12px;
 }
@@ -1265,6 +1268,7 @@ select:focus-visible,
 }
 
 .planner-layout {
+  min-width: 0;
   grid-template-columns: clamp(224px, 24vw, 286px) minmax(0, 1fr);
   grid-template-areas:
     "clock log"
@@ -1274,8 +1278,8 @@ select:focus-visible,
 }
 .planner-clock { grid-area: clock; }
 .capture-log { grid-area: log; }
-.task-pool { grid-area: deck; min-height: var(--planner-panel-height); }
-.calendar-panel { grid-area: calendar; min-height: var(--planner-panel-height); }
+.task-pool { grid-area: deck; min-width: 0; min-height: var(--planner-panel-height); z-index: 2; }
+.calendar-panel { position: relative; grid-area: calendar; min-width: 0; min-height: var(--planner-panel-height); z-index: 1; }
 .planner-clock {
   min-width: 0;
   padding: 13px 15px;
@@ -1458,9 +1462,9 @@ select:focus-visible,
 
 .calendar-grid > .day-column > .day-task-list { padding-top: 20px; }
 .calendar-grid > .day-column > .day-task-list > .item-card:first-child {
-  height: 88px;
+  height: auto;
   min-height: 88px;
-  flex: 0 0 88px;
+  flex: 0 0 auto;
 }
 .multi-day-event-lead-spacer {
   width: 100%;
@@ -1908,3 +1912,37 @@ select:focus-visible,
   .category-choice { gap: 6px !important; padding-inline: 7px; font-size: 9px !important; }
   .schedule-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+.drag-overlay-card {
+  position: relative !important;
+  z-index: 9999 !important;
+  inset: auto !important;
+  height: auto !important;
+  min-height: fit-content;
+  max-height: none;
+  overflow: visible !important;
+  padding: 12px !important;
+  color: var(--ink) !important;
+  background: var(--surface) !important;
+  border: 2px solid var(--ink) !important;
+  border-left: 7px solid var(--category-accent, var(--cobalt)) !important;
+  border-radius: 0 !important;
+  box-shadow: 7px 7px 0 var(--ink) !important;
+  opacity: 1 !important;
+  cursor: grabbing !important;
+  pointer-events: none;
+  transform: none !important;
+}
+.drag-overlay-card.is-client-work { --category-accent: var(--category-client); }
+.drag-overlay-card.is-admin-finance { --category-accent: var(--category-admin); }
+.drag-overlay-card.is-creative-projects { --category-accent: var(--category-creative); }
+.drag-overlay-card.is-personal-life { --category-accent: var(--category-personal); }
+.drag-overlay-card.is-frog {
+  background: var(--acid) !important;
+  border-color: var(--ink) !important;
+}
+.drag-overlay-card .item-title,
+.drag-overlay-card .item-meta,
+.drag-overlay-card .event-time,
+.drag-overlay-card .frog-card-title,
+.drag-overlay-card .frog-card-meta { color: var(--ink) !important; }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   pointerWithin,
@@ -43,6 +45,7 @@ import Logbook from './Logbook.jsx'
 import CloudAccount from './CloudAccount.jsx'
 import { useFirebaseAuth } from './firebaseAuthContext.js'
 import { useFirebaseSync } from './firebaseSync.js'
+import { prioritizePlannerCollisions } from './plannerDnd.js'
 import './App.css'
 import './ArtDirection.css'
 
@@ -194,7 +197,7 @@ function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true,
     <article
       ref={setCardRef}
       className={`item-card ${fixedEvent ? 'is-event' : `is-${item.category}`} ${item.status === 'completed' ? 'is-complete' : ''} ${isFrog ? 'is-frog frog-card' : ''} ${item.date ? 'is-scheduled' : ''} ${drop.isOver ? 'is-over' : ''}`}
-      style={{ transform: draggable.transform ? `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)` : undefined, opacity: draggable.isDragging ? 0.42 : 1, zIndex: draggable.isDragging ? 4 : undefined }}
+      style={{ transform: !draggable.isDragging && draggable.transform ? `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)` : undefined, opacity: draggable.isDragging ? 0.16 : 1 }}
       {...draggable.attributes}
       {...draggable.listeners}
       role="group"
@@ -223,6 +226,43 @@ function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true,
         </div>
       </>}
       {!item.date && <div className="pool-card-tools"><span className={`priority priority-${item.priority.toLowerCase()}`}>{item.priority}</span><button aria-label={fixedEvent ? 'Delete event' : 'Delete task'} title={fixedEvent ? 'Delete event' : 'Delete task'} onClick={(event) => { event.stopPropagation(); onDelete(item.id) }}><Trash2 size={13} /></button></div>}
+    </article>
+  )
+}
+
+function DragPreview({ item, width }) {
+  const fixedEvent = isFixedEvent(item)
+  const category = categories[item.category] || categories['personal-life']
+  const isFrog = Boolean(item.frogDate) && item.type === 'task'
+
+  return (
+    <article
+      className={`item-card drag-overlay-card ${fixedEvent ? 'is-event' : `is-${item.category}`} ${item.status === 'completed' ? 'is-complete' : ''} ${isFrog ? 'is-frog frog-card' : ''} ${item.date ? 'is-scheduled' : ''}`}
+      style={{ width: width || undefined }}
+      aria-hidden="true"
+    >
+      {isFrog
+        ? <>
+            <div className="frog-card-label"><span className="frog-index">01</span> DAILY PRIORITY</div>
+            <div className="frog-card-title">{item.title}</div>
+            <div className="frog-card-bottom">
+              <span className="frog-card-meta"><CategoryMark category={item.category} size={13} /> {category.label} · {item.duration} min{item.project ? ` · ${item.project}` : ''}</span>
+            </div>
+          </>
+        : <>
+            <div className="item-card-top">
+              <span className={`item-icon category-${item.category}`}><CategoryMark category={item.category} /></span>
+              <span className="item-title">{item.title}</span>
+              {fixedEvent && <span className="fixed-mark"><CalendarDays size={11} /> FIXED</span>}
+              {!fixedEvent && <span className="drag-handle" aria-hidden="true"><GripVertical size={14} /></span>}
+            </div>
+            {fixedEvent && <div className="event-time">{item.time}</div>}
+            <div className="item-meta">
+              <span className="category-meta"><CategoryMark category={item.category} size={12} /> {category.label}</span>
+              <span>{item.duration} min{item.project ? ` · ${item.project}` : ''}</span>
+              {item.dueDate && <span className="deadline-meta">Due {new Date(`${item.dueDate}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>}
+            </div>
+          </>}
     </article>
   )
 }
@@ -264,11 +304,7 @@ function DropZone({ id, data, className, dateKeyValue, children, disabled = fals
 }
 
 function plannerCollisionDetection(args) {
-  const collisions = pointerWithin(args)
-  const targetKind = (collision) => args.droppableContainers.find((container) => container.id === collision.id)?.data.current?.kind
-  const preferred = collisions.find((collision) => targetKind(collision) === 'item') ??
-    collisions.find((collision) => targetKind(collision) === 'regular-task')
-  return preferred ? [preferred, ...collisions.filter((collision) => collision.id !== preferred.id)] : collisions
+  return prioritizePlannerCollisions(pointerWithin(args), args.droppableContainers)
 }
 
 function MonthItem({ item, onEdit, onToggleComplete }) {
@@ -437,6 +473,8 @@ function App() {
   const [clock, setClock] = useState(() => new Date())
   const [undoItems, setUndoItems] = useState(null)
   const [isDraggingToDeck, setIsDraggingToDeck] = useState(false)
+  const [draggedItem, setDraggedItem] = useState(null)
+  const [draggedItemWidth, setDraggedItemWidth] = useState(null)
   const [timelineBefore, setTimelineBefore] = useState(0)
   const [timelineAfter, setTimelineAfter] = useState(0)
   const [logCaptureId, setLogCaptureId] = useState(null)
@@ -900,6 +938,8 @@ function App() {
 
   function handleDragEnd(event) {
     stopDragAutoScroll()
+    setDraggedItem(null)
+    setDraggedItemWidth(null)
     const itemId = event.active.data.current?.itemId
     const target = event.over?.data.current
     if (!itemId || !target) return
@@ -924,6 +964,18 @@ function App() {
     } else if (target.kind === 'item') {
       reorderInDay(itemId, target.itemId, target.date)
     }
+  }
+
+  function handleDragStart(event) {
+    const itemId = event.active.data.current?.itemId
+    setDraggedItem(items.find((item) => item.id === itemId) || null)
+    setDraggedItemWidth(event.active.rect.current.initial?.width || null)
+  }
+
+  function handleDragCancel() {
+    stopDragAutoScroll()
+    setDraggedItem(null)
+    setDraggedItemWidth(null)
   }
 
   function createItem(title = '') {
@@ -1105,9 +1157,10 @@ function App() {
       sensors={sensors}
       collisionDetection={plannerCollisionDetection}
       autoScroll={false}
+      onDragStart={handleDragStart}
       onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
-      onDragCancel={stopDragAutoScroll}
+      onDragCancel={handleDragCancel}
     >
       <div className={`app-shell ${focusMode ? 'focus-mode' : ''} ${isDraggingToDeck ? 'dragging-to-deck' : ''}`}>
         <main className="main-area">
@@ -1352,6 +1405,12 @@ function App() {
         />}
         {conversion && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConversion(null) }}><form className="edit-modal conversion-modal" onSubmit={(event) => { event.preventDefault(); convertNote(conversion.note, conversion.text.split('\n')) }}><div className="modal-heading"><div><span className="eyebrow">KEEPING THE ORIGINAL NOTE</span><h2>Make it actionable.</h2></div><button type="button" className="icon-button" aria-label="Close" onClick={() => setConversion(null)}><X size={18} /></button></div><p className="conversion-copy">Edit or split into separate lines. Each line becomes a task; the original stays in your inbox.</p><label>Tasks<textarea rows={6} value={conversion.text} onChange={(event) => setConversion((value) => ({ ...value, text: event.target.value }))} autoFocus /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setConversion(null)}>Cancel</button><button className="primary-button" type="submit"><Plus size={15} /> Create tasks</button></div></form></div>}
       </div>
+      {createPortal(
+        <DragOverlay dropAnimation={null} zIndex={9999}>
+          {draggedItem && <DragPreview item={draggedItem} width={draggedItemWidth} />}
+        </DragOverlay>,
+        document.body,
+      )}
     </DndContext>
   )
 }
