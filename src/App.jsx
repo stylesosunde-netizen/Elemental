@@ -156,14 +156,15 @@ function CategoryMark({ category, size = 15 }) {
 
 function CompletionCheckbox({ item, onToggleComplete }) {
   const completed = item.status === 'completed'
+  const recordLabel = isFixedEvent(item) ? 'event' : 'task'
   return (
     <button
       type="button"
       className={`completion-checkbox ${completed ? 'checked' : ''}`}
       role="checkbox"
       aria-checked={completed}
-      aria-label={`${completed ? 'Mark active' : 'Complete'} ${item.title}`}
-      title={completed ? 'Mark active' : 'Complete task'}
+      aria-label={`${completed ? 'Mark active' : 'Complete'} ${recordLabel}: ${item.title}`}
+      title={completed ? 'Mark active' : `Complete ${recordLabel}`}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => { event.stopPropagation(); onToggleComplete(item.id) }}
     >
@@ -215,7 +216,7 @@ function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true,
           <span className={`item-icon category-${item.category}`} title={category.label} aria-label={category.label}><CategoryMark category={item.category} /></span>
           <span className="item-title">{item.title}</span>
           {fixedEvent && <span className="fixed-mark"><CalendarDays size={11} /> FIXED</span>}
-          {!fixedEvent && <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />}
+          <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />
           <span className="drag-handle" aria-hidden="true"><GripVertical size={14} /></span>
         </div>
         {fixedEvent && <div className="event-time">{item.time}</div>}
@@ -267,7 +268,7 @@ function DragPreview({ item, width }) {
   )
 }
 
-function MultiDayEventCard({ segment, onEdit, compact = false }) {
+function MultiDayEventCard({ segment, onEdit, onToggleComplete, compact = false }) {
   const { item, startIndex, endIndex, row, lane } = segment
   const firstVisibleDate = segment.startDate === item.date
   const lastVisibleDate = segment.endDate === item.endDate
@@ -277,24 +278,32 @@ function MultiDayEventCard({ segment, onEdit, compact = false }) {
     ? { gridColumn: `${startIndex % 7 + 1} / ${((endIndex - 1) % 7) + 2}`, gridRow: row + 1, top: `${31 + lane * 38}px` }
     : { gridColumn: `${startIndex + 1} / ${endIndex + 1}`, gridRow: 1, top: `${216 + (segment.hasLeadingItem ? 96 : 0) + lane * 118}px` }
   return (
-    <button
-      type="button"
-      className={`multi-day-event ${compact ? 'is-compact' : ''} ${firstVisibleDate ? 'starts-event' : ''} ${lastVisibleDate ? 'ends-event' : ''}`}
+    <div
+      className={`multi-day-event ${compact ? 'is-compact' : ''} ${item.status === 'completed' ? 'is-complete' : ''} ${firstVisibleDate ? 'starts-event' : ''} ${lastVisibleDate ? 'ends-event' : ''}`}
       style={style}
       title={`${item.title} · ${item.date}–${item.endDate}`}
-      onClick={() => onEdit(item)}
+      role="group"
+      aria-label={`Fixed event: ${item.title}`}
     >
-      {compact
-        ? <><strong>{item.time}</strong><span>{item.title}</span></>
-        : <>
-          <span className="multi-day-event-primary"><strong>{startTime}</strong><span>{item.title}</span></span>
-          <span className="multi-day-event-metadata">
-            <span>ENDS {endDate}</span>
-            <span>{item.duration} MIN</span>
-            <span className="multi-day-event-project">{item.project || 'NO PROJECT'}</span>
-          </span>
-        </>}
-    </button>
+      <button
+        className="multi-day-event-open"
+        type="button"
+        aria-label={`Edit fixed event: ${item.title}`}
+        onClick={() => onEdit(item)}
+      >
+        {compact
+          ? <><strong>{item.time}</strong><span>{item.title}</span></>
+          : <>
+            <span className="multi-day-event-primary"><strong>{startTime}</strong><span>{item.title}</span></span>
+            <span className="multi-day-event-metadata">
+              <span>ENDS {endDate}</span>
+              <span>{item.duration} MIN</span>
+              <span className="multi-day-event-project">{item.project || 'NO PROJECT'}</span>
+            </span>
+          </>}
+      </button>
+      <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />
+    </div>
   )
 }
 
@@ -319,7 +328,7 @@ function MonthItem({ item, onEdit, onToggleComplete }) {
     <article
       ref={draggable.setNodeRef}
       style={{ transform: draggable.transform ? `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)` : undefined, opacity: draggable.isDragging ? 0.4 : 1 }}
-      className={`month-item ${fixedEvent ? 'month-event' : `month-${item.category}`} ${deadline ? 'month-deadline' : ''} ${overdue ? 'is-overdue' : ''} ${isFrog ? 'is-frog' : ''}`}
+      className={`month-item ${fixedEvent ? 'month-event' : `month-${item.category}`} ${item.status === 'completed' ? 'is-complete' : ''} ${deadline ? 'month-deadline' : ''} ${overdue ? 'is-overdue' : ''} ${isFrog ? 'is-frog' : ''}`}
       title={fixedEvent
         ? `${categoryDescription} · ${item.title} · ${item.date}${item.time ? ` · ${item.time}` : ''}`
         : `${categoryDescription} · ${item.title} · ${deadline ? `due ${item.dueDate}` : `${item.duration} min`}`}
@@ -330,7 +339,7 @@ function MonthItem({ item, onEdit, onToggleComplete }) {
         <span className="month-item-title">{item.title}</span>
         <span className={`month-category-label category-${item.category}`}>{category.label}</span>
       </button>
-      {!fixedEvent && <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />}
+      <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />
     </article>
   )
 }
@@ -364,7 +373,7 @@ function MonthGrid({ monthDate, items, onSelectDate, onEdit, onToggleComplete })
             </div>
           </DropZone>
         })}
-        {multiDayEventSegments.map((segment) => <MultiDayEventCard key={`${segment.item.id}-${segment.row}-${segment.startIndex}`} segment={segment} onEdit={onEdit} compact />)}
+        {multiDayEventSegments.map((segment) => <MultiDayEventCard key={`${segment.item.id}-${segment.row}-${segment.startIndex}`} segment={segment} onEdit={onEdit} onToggleComplete={onToggleComplete} compact />)}
       </div>
     </div>
   )
@@ -1284,7 +1293,7 @@ function App() {
                                 <circle cx="37" cy="18" r="1.5" fill="currentColor" />
                               </svg>}
                           </DropZone>
-                          <DropZone id={`tasks-${key}`} data={{ kind: 'regular-task', date: key, index: 0 }} className="day-task-list">
+                          <DropZone id={`tasks-${key}`} data={{ kind: 'regular-task', date: key, index: dayItems.length }} className="day-task-list">
                             {dayItems.slice(0, 1).map((item) => <ItemCard key={item.id} item={item} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropDate={key} />)}
                             {!isMobile && (() => {
                               return <>
@@ -1299,7 +1308,7 @@ function App() {
                           {taxDeadline && <TaxDeadlineCard deadline={taxDeadline} />}
                         </DropZone>
                       })}
-                      {!isMobile && multiDayEventSegments.map((segment) => <MultiDayEventCard key={`${segment.item.id}-${segment.startIndex}`} segment={segment} onEdit={setEditing} />)}
+                      {!isMobile && multiDayEventSegments.map((segment) => <MultiDayEventCard key={`${segment.item.id}-${segment.startIndex}`} segment={segment} onEdit={setEditing} onToggleComplete={toggleComplete} />)}
                     </div>
                   </div>
                   <div className="calendar-footnote"><span className="event-legend"><CalendarDays size={13} /> Fixed event</span><span className="task-legend"><Circle size={9} /> Flexible task</span><span className="working-hours">Scroll sideways to browse dates · Drag to reorder</span></div>
@@ -1313,7 +1322,7 @@ function App() {
                       ? items.filter((item) => item.date && item.status !== 'completed').map((item) => {
                         const category = categories[item.category] || categories['personal-life']
                         return <div className="scheduled-pool-row" key={item.id}>
-                          {item.type === 'task' && <CompletionCheckbox item={item} onToggleComplete={toggleComplete} />}
+                          <CompletionCheckbox item={item} onToggleComplete={toggleComplete} />
                           <span className={`tiny-element category-${item.category}`} title={category.label}><CategoryMark category={item.category} size={14} /></span>
                           <button className="scheduled-pool-title" onClick={() => setEditing(item)}>
                             {item.title}
@@ -1357,7 +1366,7 @@ function App() {
             {activeView === 'month' && <>
               <div className="page-heading month-heading"><div><div className="eyebrow"><span className="eyebrow-mark"><span /><span /><span /><span /></span> A WIDER VIEW</div><h1>Monthly rhythm.</h1><p className="heading-subtitle">See the shape of your commitments at a glance.</p></div><div className="heading-actions"><button className="primary-button" onClick={createItem}><Plus size={16} /> New Task or Event</button></div></div>
               <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
-              <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed')} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
+              <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed' || isFixedEvent(item))} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
               <div className="month-hint"><span>◆ Fixed event</span><span>• Flexible task</span><span>Choose a date to open its week</span></div>
             </>}
 

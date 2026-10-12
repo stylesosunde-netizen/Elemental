@@ -786,7 +786,6 @@ select:focus-visible,
   letter-spacing: .04em;
 }
 .item-card.is-complete { color: var(--muted); opacity: .62; }
-.item-card.is-complete .item-title { text-decoration: line-through; }
 .item-title { color: var(--ink); font-size: 11px; font-weight: 700; }
 .item-meta { color: var(--muted); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 8px; }
 .event-time {
@@ -1946,3 +1945,213 @@ select:focus-visible,
 .drag-overlay-card .event-time,
 .drag-overlay-card .frog-card-title,
 .drag-overlay-card .frog-card-meta { color: var(--ink) !important; }
+
+.calendar-grid > .day-column > .day-task-list {
+  flex: 1 1 auto;
+  padding-bottom: 100px;
+}
+
+.calendar-grid > .day-column > .day-task-list > .item-card.is-complete:first-child {
+  min-height: 0;
+}
+
+.item-card.is-complete {
+  min-height: 0;
+  height: auto;
+  padding: 5px 8px;
+  text-decoration: none;
+}
+
+.day-column .item-card.is-complete {
+  min-height: 0;
+}
+
+.day-column .item-card.is-event.is-complete {
+  flex-direction: row;
+  align-items: center;
+  min-height: 0;
+  padding-bottom: 5px;
+  background: var(--surface);
+}
+
+.item-card.is-complete .item-card-top {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-card.is-complete .item-title {
+  display: block;
+  -webkit-line-clamp: unset;
+  font-size: 11px;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.item-card.is-complete .item-icon,
+.item-card.is-complete .fixed-mark,
+.item-card.is-complete .drag-handle,
+.item-card.is-complete .event-time,
+.item-card.is-complete .item-meta,
+.item-card.is-complete .pool-card-tools {
+  display: none;
+}
+
+.item-card.is-complete:not(.frog-card) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.item-card.is-complete .completion-checkbox {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+
+.item-card.is-complete.frog-card {
+  flex-direction: row;
+  align-items: center;
+  min-height: 0;
+  padding: 5px 8px;
+}
+
+.item-card.is-complete.frog-card .frog-card-label,
+.item-card.is-complete.frog-card .frog-card-meta {
+  display: none;
+}
+
+.item-card.is-complete.frog-card .frog-card-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.item-card.is-complete.frog-card .frog-card-bottom {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0 0 0 6px;
+}
+
+.item-card.is-complete.frog-card .frog-card-bottom .completion-checkbox {
+  width: 24px;
+  height: 24px;
+}
+
+.multi-day-event-open {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  font: inherit;
+}
+
+.multi-day-event-open:hover {
+  color: inherit;
+  background: transparent;
+}
+
+.multi-day-event:not(.is-compact) .multi-day-event-open {
+  flex-direction: row;
+  gap: 8px;
+}
+
+.multi-day-event-metadata { flex: 1 1 40%; }
+.multi-day-event .multi-day-event-open .multi-day-event-metadata { justify-content: flex-end; }
+
+.multi-day-event > .completion-checkbox {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-left: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--ink);
+}
+
+.multi-day-event.is-compact {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.multi-day-event.is-compact .multi-day-event-open {
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.multi-day-event.is-compact .multi-day-event-open > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.multi-day-event.is-compact > .completion-checkbox {
+  width: 19px;
+  height: 19px;
+  margin-left: 3px;
+}
+
+.multi-day-event.is-complete {
+  height: 38px;
+  min-height: 0;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  background: var(--surface);
+}
+
+.multi-day-event.is-complete .multi-day-event-primary > strong,
+.multi-day-event.is-complete .multi-day-event-metadata,
+.multi-day-event.is-complete .multi-day-event-open > strong {
+  display: none;
+}
+
+.multi-day-event.is-complete .multi-day-event-primary > span,
+.multi-day-event.is-complete .multi-day-event-open > span {
+  flex: 1 1 auto;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.month-item.is-complete {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  background: var(--surface);
+}
+
+.month-item.is-complete .month-item-content {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: 3px 5px;
+}
+
+.month-item.is-complete .month-category-icon,
+.month-item.is-complete .month-item-time,
+.month-item.is-complete .month-category-label {
+  display: none;
+}
+
+.month-item.is-complete .month-item-title {
+  flex: 1 1 auto;
+  font-size: 10px;
+}
+
+.month-item.is-complete > .completion-checkbox {
+  flex: 0 0 auto;
+  margin: 0 4px;
+}
+
+@media (max-width: 650px) {
+  .calendar-grid > .day-column > .day-task-list {
+    flex: 1 1 auto;
+    padding-bottom: 100px;
+  }
+}
