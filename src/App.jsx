@@ -268,7 +268,7 @@ function DragPreview({ item, width }) {
   )
 }
 
-function MultiDayEventCard({ segment, onEdit, onToggleComplete, compact = false }) {
+function MultiDayEventCard({ segment, onEdit, onToggleComplete, compact = false, top }) {
   const { item, startIndex, endIndex, row, lane } = segment
   const firstVisibleDate = segment.startDate === item.date
   const lastVisibleDate = segment.endDate === item.endDate
@@ -276,7 +276,7 @@ function MultiDayEventCard({ segment, onEdit, onToggleComplete, compact = false 
   const endDate = new Date(`${item.endDate}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
   const style = compact
     ? { gridColumn: `${startIndex % 7 + 1} / ${((endIndex - 1) % 7) + 2}`, gridRow: row + 1, top: `${31 + lane * 38}px` }
-    : { gridColumn: `${startIndex + 1} / ${endIndex + 1}`, gridRow: 1, top: `${216 + (segment.hasLeadingItem ? 96 : 0) + lane * 118}px` }
+    : { gridColumn: `${startIndex + 1} / ${endIndex + 1}`, gridRow: 1, top: `${top}px` }
   return (
     <div
       className={`multi-day-event ${compact ? 'is-compact' : ''} ${item.status === 'completed' ? 'is-complete' : ''} ${firstVisibleDate ? 'starts-event' : ''} ${lastVisibleDate ? 'ends-event' : ''}`}
@@ -497,6 +497,9 @@ function App() {
   const captureRef = useRef(null)
   const backupInputRef = useRef(null)
   const calendarScrollRef = useRef(null)
+  const calendarGridRef = useRef(null)
+  const multiDayEventSpacerRefs = useRef(new Map())
+  const [multiDayEventTops, setMultiDayEventTops] = useState({})
   const pendingTimelineAdjustment = useRef(null)
   const pendingCalendarScrollRestore = useRef(null)
   const preservePlannerDateOnOpen = useRef(false)
@@ -515,17 +518,41 @@ function App() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor))
   const dates = useMemo(() => timelineDates(weekStart, timelineBefore, timelineAfter), [weekStart, timelineBefore, timelineAfter])
   const multiDayEventSegments = useMemo(() => {
-    const segments = getMultiDayEventSegments(items, dates)
-    return segments.map((segment) => ({
-      ...segment,
-      hasLeadingItem: dates.slice(segment.startIndex, segment.endIndex).some((day) => {
-        const key = dateKey(day)
-        const frog = getFrogForDate(items, key, true)
-        return items.some((item) => item.date === key &&
-          item.id !== frog?.id && !(isFixedEvent(item) && item.endDate > item.date))
-      }),
-    }))
+    return getMultiDayEventSegments(items, dates)
   }, [items, dates])
+  useLayoutEffect(() => {
+    if (isMobile) return undefined
+    const grid = calendarGridRef.current
+    if (!grid) return undefined
+
+    const measureEventTops = () => {
+      const gridTop = grid.getBoundingClientRect().top
+      const nextTops = {}
+      for (const segment of multiDayEventSegments) {
+        const positions = dates
+          .slice(segment.startIndex, segment.endIndex)
+          .map((day) => multiDayEventSpacerRefs.current.get(`${dateKey(day)}:${segment.lane}`))
+          .filter(Boolean)
+          .map((spacer) => spacer.getBoundingClientRect().top - gridTop)
+        if (positions.length) {
+          nextTops[`${segment.item.id}-${segment.startIndex}`] = Math.max(...positions)
+        }
+      }
+      setMultiDayEventTops((current) => {
+        const keys = Object.keys(nextTops)
+        if (keys.length === Object.keys(current).length &&
+          keys.every((key) => current[key] === nextTops[key])) return current
+        return nextTops
+      })
+    }
+
+    measureEventTops()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measureEventTops)
+    observer.observe(grid)
+    calendarScrollRef.current?.querySelectorAll('.day-task-list').forEach((list) => observer.observe(list))
+    return () => observer.disconnect()
+  }, [dates, isMobile, multiDayEventSegments])
   const weekEnd = dates[dates.length - 1]
   const currentDayKey = dateKey(clock)
   const lastTodayKey = useRef(currentDayKey)
@@ -1256,7 +1283,7 @@ function App() {
                   </div>
                   <div className="mobile-day-stepper"><button aria-label="Previous day" onClick={() => shiftMobileDay(-1)}><ChevronLeft size={16} /></button><strong>{new Date(`${mobileDay}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</strong><button aria-label="Next day" onClick={() => shiftMobileDay(1)}><ChevronRight size={16} /></button></div>
                   <div className="calendar-scroll" ref={calendarScrollRef} onScroll={extendTimeline}>
-                    <div className="calendar-grid">
+                    <div className="calendar-grid" ref={calendarGridRef}>
                       {dates.map((day) => {
                         const key = dateKey(day)
                         const taxDeadline = getBizkaiaTaxDeadline(day)
@@ -1275,9 +1302,6 @@ function App() {
                         const laneCount = Math.max(0, ...multiDayEventSegments
                           .filter((segment) => segment.startIndex <= dayIndex && segment.endIndex > dayIndex)
                           .map((segment) => segment.lane + 1))
-                        const needsLeadSlot = dayItems.length === 0 && multiDayEventSegments.some((segment) =>
-                          segment.hasLeadingItem && segment.startIndex <= dayIndex && segment.endIndex > dayIndex,
-                        )
                         return <DropZone key={key} id={`day-${key}`} data={{ kind: 'day', date: key }} className={`day-column ${day.getDay() === 0 || day.getDay() === 6 ? 'is-weekend' : ''} ${key === currentDayKey ? 'is-today' : ''} ${key === mobileDay ? 'mobile-active' : ''}`} dateKeyValue={key}>
                           <div className="day-head">
                             <span>{day.toLocaleDateString([], { weekday: 'short' })}</span>
@@ -1294,21 +1318,27 @@ function App() {
                               </svg>}
                           </DropZone>
                           <DropZone id={`tasks-${key}`} data={{ kind: 'regular-task', date: key, index: dayItems.length }} className="day-task-list">
-                            {dayItems.slice(0, 1).map((item) => <ItemCard key={item.id} item={item} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropDate={key} />)}
-                            {!isMobile && (() => {
-                              return <>
-                                {needsLeadSlot && <div aria-hidden="true" className="multi-day-event-lead-spacer" />}
-                                {Array.from({ length: laneCount }, (_, lane) => (
-                                  <div key={lane} aria-hidden="true" className="multi-day-event-spacer" />
-                                ))}
-                              </>
-                            })()}
-                            {dayItems.slice(1).map((item) => <ItemCard key={item.id} item={item} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropDate={key} />)}
+                            {dayItems.map((item) => <ItemCard key={item.id} item={item} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropDate={key} />)}
+                            {!isMobile && Array.from({ length: laneCount }, (_, lane) => (
+                              <div
+                                key={lane}
+                                ref={(node) => {
+                                  const spacerKey = `${key}:${lane}`
+                                  if (node) multiDayEventSpacerRefs.current.set(spacerKey, node)
+                                  else multiDayEventSpacerRefs.current.delete(spacerKey)
+                                }}
+                                aria-hidden="true"
+                                className="multi-day-event-spacer"
+                              />
+                            ))}
                           </DropZone>
                           {taxDeadline && <TaxDeadlineCard deadline={taxDeadline} />}
                         </DropZone>
                       })}
-                      {!isMobile && multiDayEventSegments.map((segment) => <MultiDayEventCard key={`${segment.item.id}-${segment.startIndex}`} segment={segment} onEdit={setEditing} onToggleComplete={toggleComplete} />)}
+                      {!isMobile && multiDayEventSegments.map((segment) => {
+                        const eventKey = `${segment.item.id}-${segment.startIndex}`
+                        return <MultiDayEventCard key={eventKey} segment={segment} top={multiDayEventTops[eventKey] ?? 0} onEdit={setEditing} onToggleComplete={toggleComplete} />
+                      })}
                     </div>
                   </div>
                   <div className="calendar-footnote"><span className="event-legend"><CalendarDays size={13} /> Fixed event</span><span className="task-legend"><Circle size={9} /> Flexible task</span><span className="working-hours">Scroll sideways to browse dates · Drag to reorder</span></div>

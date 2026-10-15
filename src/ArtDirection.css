@@ -1465,12 +1465,6 @@ select:focus-visible,
   min-height: 88px;
   flex: 0 0 auto;
 }
-.multi-day-event-lead-spacer {
-  width: 100%;
-  height: 88px;
-  flex: 0 0 88px;
-  pointer-events: none;
-}
 .multi-day-event-spacer {
   width: 100%;
   height: 110px;
@@ -2009,34 +2003,46 @@ select:focus-visible,
 }
 
 .item-card.is-complete.frog-card {
-  flex-direction: row;
-  align-items: center;
-  min-height: 0;
-  padding: 5px 8px;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 111px;
+  padding: 10px;
+  color: #07150b !important;
+  background: #00ff66 !important;
+  border-color: #07150b !important;
+  border-left-color: #07150b !important;
+  box-shadow: 4px 4px 0 #07150b;
+  opacity: 1 !important;
 }
 
-.item-card.is-complete.frog-card .frog-card-label,
-.item-card.is-complete.frog-card .frog-card-meta {
-  display: none;
+.item-card.is-complete.frog-card::after {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 6px;
+  color: #00ff66;
+  background: #07150b;
+  border: 2px solid #07150b;
+  content: "[ EXECUTED ]";
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .04em;
 }
 
+.item-card.is-complete.frog-card .frog-card-label { padding-right: 82px; color: #07150b; }
+.item-card.is-complete.frog-card .frog-card-meta { color: #07150b; }
 .item-card.is-complete.frog-card .frog-card-title {
-  flex: 1 1 auto;
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.item-card.is-complete.frog-card .frog-card-bottom {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  margin: 0 0 0 6px;
+  color: #07150b;
 }
 
 .item-card.is-complete.frog-card .frog-card-bottom .completion-checkbox {
-  width: 24px;
-  height: 24px;
+  width: 31px;
+  height: 31px;
+  color: #00ff66;
+  background: #07150b;
+  border-color: #07150b;
 }
 
 .multi-day-event-open {
@@ -2103,7 +2109,7 @@ select:focus-visible,
   min-height: 0;
   padding-top: 5px;
   padding-bottom: 5px;
-  background: var(--surface);
+  background-color: var(--signal);
 }
 
 .multi-day-event.is-complete .multi-day-event-primary > strong,
