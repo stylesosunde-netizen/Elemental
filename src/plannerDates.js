@@ -63,6 +63,14 @@ export function isFixedEvent(item) {
     typeof item.time === 'string' && item.time.length > 0
 }
 
+export function sortFixedEventsChronologically(items) {
+  const sortedEvents = items
+    .filter(isFixedEvent)
+    .sort((left, right) => left.time.localeCompare(right.time) || left.id.localeCompare(right.id))
+  let eventIndex = 0
+  return items.map((item) => isFixedEvent(item) ? sortedEvents[eventIndex++] : item)
+}
+
 export function getMultiDayEventSegments(items, dates, columns = dates.length) {
   if (!columns || !dates.length) return []
   const visibleDates = dates.map(dateKey)

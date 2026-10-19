@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { addDays, BIZKAIA_FISCAL_CALENDAR, dateKey, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, getSpotlightCandidates, isFixedEvent, rollingDates, timelineDates } from '../src/plannerDates.js'
+import { addDays, BIZKAIA_FISCAL_CALENDAR, dateKey, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, getSpotlightCandidates, isFixedEvent, rollingDates, sortFixedEventsChronologically, timelineDates } from '../src/plannerDates.js'
 
 function keys(dates) {
   return dates.map(dateKey)
@@ -68,6 +68,22 @@ test('fixed events are identified by having both a date and a time', () => {
   assert.equal(isFixedEvent({ type: 'task', date: '2026-10-11', time: '09:00' }), true)
   assert.equal(isFixedEvent({ type: 'event', date: '2026-10-11', time: null }), false)
   assert.equal(isFixedEvent({ type: 'task', date: null, time: null }), false)
+})
+
+test('fixed events stack chronologically without changing task order', () => {
+  const items = [
+    { id: 'late', date: '2026-10-11', time: '15:00', order: 0 },
+    { id: 'task', date: '2026-10-11', time: null, order: 1 },
+    { id: 'early', date: '2026-10-11', time: '09:00', order: 2 },
+    { id: 'middle', date: '2026-10-11', time: '12:00', order: 3 },
+  ]
+
+  assert.deepEqual(sortFixedEventsChronologically(items).map((item) => item.id), [
+    'early',
+    'task',
+    'middle',
+    'late',
+  ])
 })
 
 test('multi-day events span consecutive weekly columns and overlapping events use separate lanes', () => {

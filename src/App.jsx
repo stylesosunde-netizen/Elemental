@@ -39,7 +39,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, isFixedEvent, recordFrogChange, recordScheduleChange, startOfDay, timelineDates } from './plannerDates'
+import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, isFixedEvent, recordFrogChange, recordScheduleChange, sortFixedEventsChronologically, startOfDay, timelineDates } from './plannerDates'
 import { LOGBOOK_KEY, TASKS_KEY, createBackup, parseBackup } from './dataBackup'
 import Logbook from './Logbook.jsx'
 import CloudAccount from './CloudAccount.jsx'
@@ -361,8 +361,9 @@ function MonthGrid({ monthDate, items, onSelectDate, onEdit, onToggleComplete })
           const key = dateKey(day)
           const row = Math.floor(dayIndex / 7)
           const taxDeadline = getBizkaiaTaxDeadline(day)
-          const dayItems = items.filter((item) => isFixedEvent(item) && item.date === key && !(item.endDate > item.date))
-            .sort((a, b) => (a.order || 0) - (b.order || 0))
+          const dayItems = sortFixedEventsChronologically(
+            items.filter((item) => isFixedEvent(item) && item.date === key && !(item.endDate > item.date)),
+          )
           return <DropZone key={key} id={`month-${key}`} data={{ date: key, minutes: 9 * 60, kind: 'month' }} className={`month-cell ${day.getDay() === 0 || day.getDay() === 6 ? 'is-weekend' : ''} ${day.getMonth() !== monthDate.getMonth() ? 'out-month' : ''} ${key === dateKey(new Date()) ? 'today-cell' : ''}`} disabled>
             <button className="month-date" onClick={() => onSelectDate(day)}>{day.getDate()}</button>
             {rowLaneCounts[row] > 0 && <div className="month-event-spacer" style={{ height: `${rowLaneCounts[row] * 38}px` }} />}
@@ -1285,10 +1286,10 @@ function App() {
                           item.date === key && !(isFixedEvent(item) && item.endDate > item.date),
                         )
                         const frog = getFrogForDate(items, key, true)
-                        const dayItems = [...scheduledItems, ...spanningEvents]
+                        const dayItems = sortFixedEventsChronologically([...scheduledItems, ...spanningEvents]
                           .filter((item) => item.id !== frog?.id)
                           .sort((left, right) => (left.order || 0) - (right.order || 0) ||
-                            (left.time || '').localeCompare(right.time || ''))
+                            (left.time || '').localeCompare(right.time || '')))
                         const dayIndex = dates.findIndex((date) => dateKey(date) === key)
                         const laneCount = Math.max(0, ...multiDayEventSegments
                           .filter((segment) => segment.startIndex <= dayIndex && segment.endIndex > dayIndex)
