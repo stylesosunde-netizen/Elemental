@@ -192,21 +192,3 @@ export function recordFrogChange(item, nextDate, action, changedAt = new Date().
     ],
   }
 }
-
-export function returnOverdueTasks(items, today) {
-  let changed = false
-  const updated = items.map((item) => {
-    if (item.type !== 'task' || item.status === 'completed' || !item.date || item.date >= today) return item
-    changed = true
-    const returned = recordScheduleChange(item, null, 'unfinished-day-passed')
-    const withoutFrog = recordFrogChange(returned, null, 'day-passed')
-    return {
-      ...withoutFrog,
-      date: null,
-      time: null,
-      order: 0,
-      status: 'ready',
-    }
-  })
-  return changed ? updated : items
-}

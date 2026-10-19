@@ -1244,7 +1244,7 @@ body { color: var(--ink); background: var(--paper); font-family: Inter, 'Segoe U
   gap: 12px;
 }
 .calendar-panel { grid-column: 2; grid-row: 1; height: auto; max-height: min(66dvh, 620px); }
-.calendar-scroll { min-height: 0; max-height: min(66dvh, 620px); flex: 0 1 auto; overflow: auto; overscroll-behavior: contain; scroll-behavior: auto; }
+.calendar-scroll { min-height: 0; max-height: min(66dvh, 620px); flex: 0 1 auto; overflow: auto; overscroll-behavior: contain; }
 .calendar-grid { width: max-content; min-width: 100%; min-height: 0; height: auto; grid-template-columns: none; grid-auto-columns: clamp(165px, 17vw, 210px); grid-auto-flow: column; align-items: start; }
 .day-column { height: auto; min-height: 0; }
 .day-task-list { min-height: 0; flex: 0 0 auto; }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { addDays, BIZKAIA_FISCAL_CALENDAR, dateKey, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, getSpotlightCandidates, isFixedEvent, returnOverdueTasks, rollingDates, timelineDates } from '../src/plannerDates.js'
+import { addDays, BIZKAIA_FISCAL_CALENDAR, dateKey, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, getSpotlightCandidates, isFixedEvent, rollingDates, timelineDates } from '../src/plannerDates.js'
 
 function keys(dates) {
   return dates.map(dateKey)
@@ -32,38 +32,11 @@ test('rolling horizon starts on Monday and continues through Sunday', () => {
   ])
 })
 
-test('only overdue unfinished tasks return to the deck with dates and history preserved', () => {
-  const items = [
-    {
-      id: 'unfinished-frog',
-      type: 'task',
-      status: 'scheduled',
-      date: '2026-10-09',
-      time: null,
-      frogDate: '2026-10-09',
-      scheduleHistory: [{ from: null, to: '2026-10-09', at: 'before', reason: 'scheduled' }],
-    },
-    { id: 'completed-task', type: 'task', status: 'completed', date: '2026-10-09', frogDate: null },
-    { id: 'past-event', type: 'event', status: 'scheduled', date: '2026-10-09', time: '09:30' },
-    { id: 'today-task', type: 'task', status: 'scheduled', date: '2026-10-10', frogDate: null },
-  ]
+test('weekly timeline places today in its third column', () => {
+  const today = new Date(2026, 9, 10)
+  const dates = timelineDates(addDays(today, -2))
 
-  const updated = returnOverdueTasks(items, '2026-10-10')
-  const unfinished = updated.find((item) => item.id === 'unfinished-frog')
-
-  assert.equal(updated.length, items.length)
-  assert.equal(unfinished.date, null)
-  assert.equal(unfinished.status, 'ready')
-  assert.equal(unfinished.originalScheduledDate, '2026-10-09')
-  assert.equal(unfinished.scheduleHistory.length, 2)
-  assert.equal(unfinished.scheduleHistory[1].from, '2026-10-09')
-  assert.equal(unfinished.scheduleHistory[1].to, null)
-  assert.equal(unfinished.frogDate, null)
-  assert.equal(unfinished.frogHistory[0].from, '2026-10-09')
-  assert.equal(updated.find((item) => item.id === 'completed-task').date, '2026-10-09')
-  assert.equal(updated.find((item) => item.id === 'past-event').date, '2026-10-09')
-  assert.equal(updated.find((item) => item.id === 'today-task').date, '2026-10-10')
-  assert.equal(updated.filter((item) => item.id === 'unfinished-frog').length, 1)
+  assert.equal(dateKey(dates[2]), dateKey(today))
 })
 
 test('date navigation advances exactly seven local calendar days', () => {

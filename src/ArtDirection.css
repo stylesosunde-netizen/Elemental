@@ -1091,6 +1091,7 @@ select:focus-visible,
   overflow-y: visible;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
 }
 .dragging-to-deck .calendar-scroll {
   overflow-x: hidden !important;
@@ -1106,10 +1107,9 @@ select:focus-visible,
   background-color: var(--surface);
   background-image: radial-gradient(rgba(23, 24, 23, .04) .65px, transparent .75px);
   background-size: 9px 9px;
-  scroll-snap-align: none;
+  scroll-snap-align: start;
   scroll-snap-stop: normal;
 }
-.day-column.is-today { scroll-snap-align: center; }
 .day-column.is-today { background-color: #f5f3ed; }
 .day-column.is-over { background-color: #e8eaff; }
 .day-task-list {

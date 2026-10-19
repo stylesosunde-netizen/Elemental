@@ -39,7 +39,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, isFixedEvent, recordFrogChange, recordScheduleChange, returnOverdueTasks, startOfDay, timelineDates } from './plannerDates'
+import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, isFixedEvent, recordFrogChange, recordScheduleChange, startOfDay, timelineDates } from './plannerDates'
 import { LOGBOOK_KEY, TASKS_KEY, createBackup, parseBackup } from './dataBackup'
 import Logbook from './Logbook.jsx'
 import CloudAccount from './CloudAccount.jsx'
@@ -457,7 +457,7 @@ function TaskFormModal({ item, onSave, onClose, onDelete }) {
 }
 
 function App() {
-  const [items, setItems] = useState(() => returnOverdueTasks(normalizeItems(readStored(TASKS_KEY, initialItems)), dateKey(new Date())))
+  const [items, setItems] = useState(() => normalizeItems(readStored(TASKS_KEY, initialItems)))
   const [notes, setNotes] = useState(() => readStored(NOTES_KEY, () => []))
   const [xp, setXp] = useState(() => Number(readStored(XP_KEY, () => 0)) || 0)
   const [history, setHistory] = useState(() => readStored(HISTORY_KEY, () => []))
@@ -466,7 +466,7 @@ function App() {
     return Array.isArray(records) ? records : []
   })
   const [showArchived, setShowArchived] = useState(false)
-  const [weekStart, setWeekStart] = useState(() => startOfDay(new Date()))
+  const [weekStart, setWeekStart] = useState(() => addDays(startOfDay(new Date()), -2))
   const [monthDate, setMonthDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [activeView, setActiveView] = useState('week')
   const [activeTab, setActiveTab] = useState('ready')
@@ -579,30 +579,22 @@ function App() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const showTimelineAt = useCallback((date, centerDate = false) => {
+  const showTimelineAt = useCallback((date, mobileDate = date) => {
     const start = startOfDay(date)
-    const targetDate = dateKey(start)
     setWeekStart(start)
-    setMobileDay(targetDate)
+    setMobileDay(dateKey(startOfDay(mobileDate)))
     setTimelineBefore(0)
     setTimelineAfter(0)
     pendingTimelineAdjustment.current = null
     isLoadingTimeline.current = false
     window.requestAnimationFrame(() => {
-      if (centerDate) {
-        calendarScrollRef.current?.querySelector(`[data-date="${targetDate}"]`)?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'center',
-        })
-      } else {
-        calendarScrollRef.current?.scrollTo({ left: 0 })
-      }
+      calendarScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
     })
   }, [])
 
   const goToToday = useCallback(() => {
-    showTimelineAt(new Date(), true)
+    const today = new Date()
+    showTimelineAt(addDays(today, -2), today)
   }, [showTimelineAt])
 
   const stopDragAutoScroll = useCallback(() => {
@@ -771,9 +763,8 @@ function App() {
       if (lastTodayKey.current !== todayKey) {
         const previousTodayKey = lastTodayKey.current
         lastTodayKey.current = todayKey
-        setItems((previous) => returnOverdueTasks(previous, todayKey))
-        if (dateKey(weekStart) === previousTodayKey) {
-          setWeekStart(startOfDay(now))
+        if (dateKey(addDays(weekStart, 2)) === previousTodayKey) {
+          setWeekStart(addDays(startOfDay(now), -2))
           setTimelineBefore(0)
           setTimelineAfter(0)
           pendingTimelineAdjustment.current = null
@@ -844,7 +835,7 @@ function App() {
       )
       if (!confirmed) return
 
-      const importedTasks = returnOverdueTasks(normalizeItems(backup.tasks), dateKey(new Date()))
+      const importedTasks = normalizeItems(backup.tasks)
       const previousValues = [
         [TASKS_KEY, localStorage.getItem(TASKS_KEY)],
         [LOGBOOK_KEY, localStorage.getItem(LOGBOOK_KEY)],
