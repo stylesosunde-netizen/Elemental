@@ -183,12 +183,22 @@ function TaxDeadlineCard({ deadline, compact = false }) {
   )
 }
 
+function CalendarViewToggle({ activeView, onWeek, onMonth }) {
+  return (
+    <div className="calendar-view-toggle" role="group" aria-label="Calendar view">
+      <button type="button" className={activeView === 'week' ? 'active' : ''} aria-pressed={activeView === 'week'} onClick={onWeek}>Week</button>
+      <button type="button" className={activeView === 'month' ? 'active' : ''} aria-pressed={activeView === 'month'} onClick={onMonth}>Month</button>
+    </div>
+  )
+}
+
 function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true, dropDate = item.date }) {
   const fixedEvent = isFixedEvent(item)
   const draggable = useDraggable({ id: item.id, data: { itemId: item.id }, disabled: fixedEvent })
   const drop = useDroppable({ id: `item-${item.id}-${dropDate}`, data: { kind: 'item', itemId: item.id, date: dropDate }, disabled: !dropDate || !dropTarget })
   const category = categories[item.category] || categories['personal-life']
   const isFrog = Boolean(item.frogDate) && item.type === 'task'
+  const overdue = Boolean(item.dueDate && item.dueDate < dateKey(new Date()))
   const setCardRef = (node) => {
     draggable.setNodeRef(node)
     drop.setNodeRef(node)
@@ -205,7 +215,7 @@ function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true,
       onClick={() => onEdit(item)}
     >
       {isFrog ? <>
-        <div className="frog-card-label"><span className="frog-index">01</span> DAILY PRIORITY</div>
+        <div className="frog-card-label"><span className="frog-index">01</span> DAILY FROG</div>
         <div className="frog-card-title">{item.title}</div>
         <div className="frog-card-bottom">
           <span className="frog-card-meta"><CategoryMark category={item.category} size={13} /> {category.label} · {item.duration} min{item.project ? ` · ${item.project}` : ''}</span>
@@ -216,6 +226,7 @@ function ItemCard({ item, onEdit, onToggleComplete, onDelete, dropTarget = true,
           <span className={`item-icon category-${item.category}`} title={category.label} aria-label={category.label}><CategoryMark category={item.category} /></span>
           <span className="item-title">{item.title}</span>
           {fixedEvent && <span className="fixed-mark"><CalendarDays size={11} /> FIXED</span>}
+          {!fixedEvent && item.dueDate && <span className={`deadline-mark ${overdue ? 'is-overdue' : ''}`}>! DUE</span>}
           <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />
           <span className="drag-handle" aria-hidden="true"><GripVertical size={14} /></span>
         </div>
@@ -235,6 +246,7 @@ function DragPreview({ item, width }) {
   const fixedEvent = isFixedEvent(item)
   const category = categories[item.category] || categories['personal-life']
   const isFrog = Boolean(item.frogDate) && item.type === 'task'
+  const overdue = Boolean(item.dueDate && item.dueDate < dateKey(new Date()))
 
   return (
     <article
@@ -244,7 +256,7 @@ function DragPreview({ item, width }) {
     >
       {isFrog
         ? <>
-            <div className="frog-card-label"><span className="frog-index">01</span> DAILY PRIORITY</div>
+            <div className="frog-card-label"><span className="frog-index">01</span> DAILY FROG</div>
             <div className="frog-card-title">{item.title}</div>
             <div className="frog-card-bottom">
               <span className="frog-card-meta"><CategoryMark category={item.category} size={13} /> {category.label} · {item.duration} min{item.project ? ` · ${item.project}` : ''}</span>
@@ -255,13 +267,14 @@ function DragPreview({ item, width }) {
               <span className={`item-icon category-${item.category}`}><CategoryMark category={item.category} /></span>
               <span className="item-title">{item.title}</span>
               {fixedEvent && <span className="fixed-mark"><CalendarDays size={11} /> FIXED</span>}
+              {!fixedEvent && item.dueDate && <span className={`deadline-mark ${overdue ? 'is-overdue' : ''}`}>! DUE</span>}
               {!fixedEvent && <span className="drag-handle" aria-hidden="true"><GripVertical size={14} /></span>}
             </div>
             {fixedEvent && <div className="event-time">{item.time}</div>}
             <div className="item-meta">
               <span className="category-meta"><CategoryMark category={item.category} size={12} /> {category.label}</span>
               <span>{item.duration} min{item.project ? ` · ${item.project}` : ''}</span>
-              {item.dueDate && <span className="deadline-meta">Due {new Date(`${item.dueDate}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>}
+              {item.dueDate && <span className="deadline-meta">! DEADLINE · {new Date(`${item.dueDate}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>}
             </div>
           </>}
     </article>
@@ -292,10 +305,11 @@ function MultiDayEventCard({ segment, onEdit, onToggleComplete, compact = false,
         onClick={() => onEdit(item)}
       >
         {compact
-          ? <><strong>{item.time}</strong><span>{item.title}</span></>
+          ? <><strong>{item.time}</strong><span className="multi-day-event-fixed-label">FIXED</span><span>{item.title}</span></>
           : <>
             <span className="multi-day-event-primary"><strong>{startTime}</strong><span>{item.title}</span></span>
             <span className="multi-day-event-metadata">
+              <span className="multi-day-event-fixed-label">FIXED</span>
               <span>ENDS {endDate}</span>
               <span>{item.duration} MIN</span>
               <span className="multi-day-event-project">{item.project || 'NO PROJECT'}</span>
@@ -316,11 +330,12 @@ function plannerCollisionDetection(args) {
   return prioritizePlannerCollisions(pointerWithin(args), args.droppableContainers)
 }
 
-function MonthItem({ item, onEdit, onToggleComplete }) {
+function MonthItem({ item, onEdit, onToggleComplete, displayDate = item.date }) {
   const fixedEvent = isFixedEvent(item)
   const draggable = useDraggable({ id: item.id, data: { itemId: item.id }, disabled: fixedEvent })
   const deadline = item.type === 'task' && item.dueDate
-  const overdue = deadline && item.dueDate < dateKey(new Date())
+  const dueOnDate = deadline && item.dueDate === displayDate
+  const overdue = dueOnDate && item.dueDate < dateKey(new Date())
   const isFrog = item.type === 'task' && Boolean(item.frogDate)
   const category = categories[item.category] || categories['personal-life']
   const categoryDescription = `${category.label}${fixedEvent ? ' · Fixed event' : ''}`
@@ -328,15 +343,18 @@ function MonthItem({ item, onEdit, onToggleComplete }) {
     <article
       ref={draggable.setNodeRef}
       style={{ transform: draggable.transform ? `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)` : undefined, opacity: draggable.isDragging ? 0.4 : 1 }}
-      className={`month-item ${fixedEvent ? 'month-event' : `month-${item.category}`} ${item.status === 'completed' ? 'is-complete' : ''} ${deadline ? 'month-deadline' : ''} ${overdue ? 'is-overdue' : ''} ${isFrog ? 'is-frog' : ''}`}
+      className={`month-item ${fixedEvent ? 'month-event' : `month-${item.category}`} ${item.status === 'completed' ? 'is-complete' : ''} ${deadline ? 'has-deadline' : ''} ${dueOnDate ? 'month-deadline' : ''} ${overdue ? 'is-overdue' : ''} ${isFrog ? 'is-frog' : ''}`}
       title={fixedEvent
-        ? `${categoryDescription} · ${item.title} · ${item.date}${item.time ? ` · ${item.time}` : ''}`
-        : `${categoryDescription} · ${item.title} · ${deadline ? `due ${item.dueDate}` : `${item.duration} min`}`}
+        ? `${categoryDescription} · ${item.title} · ${displayDate}${item.time ? ` · ${item.time}` : ''}`
+        : `${categoryDescription} · ${item.title} · ${dueOnDate ? `deadline ${item.dueDate}` : `${item.duration} min`}${deadline && !dueOnDate ? ` · due ${item.dueDate}` : ''}`}
     >
       <button className="month-item-content" type="button" {...draggable.attributes} {...draggable.listeners} onClick={() => onEdit(item)}>
         <span className={`month-category-icon category-${item.category}`} aria-label={category.label} title={category.label}><CategoryMark category={item.category} size={12} /></span>
         {fixedEvent && <strong className="month-item-time">{item.time}</strong>}
         <span className="month-item-title">{item.title}</span>
+        {fixedEvent
+          ? <span className="month-event-marker">FIXED</span>
+          : deadline && <span className={`month-deadline-marker ${overdue ? 'is-overdue' : ''}`}>{dueOnDate ? '! DUE' : `DUE ${new Date(`${item.dueDate}T12:00:00`).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}`}</span>}
         <span className={`month-category-label category-${item.category}`}>{category.label}</span>
       </button>
       <CompletionCheckbox item={item} onToggleComplete={onToggleComplete} />
@@ -362,15 +380,20 @@ function MonthGrid({ monthDate, items, onSelectDate, onEdit, onToggleComplete })
           const row = Math.floor(dayIndex / 7)
           const taxDeadline = getBizkaiaTaxDeadline(day)
           const dayItems = sortFixedEventsChronologically(
-            items.filter((item) => isFixedEvent(item) && item.date === key && !(item.endDate > item.date)),
+            items.filter((item) => item.date === key &&
+              !(isFixedEvent(item) && item.endDate > item.date)),
           )
+          const deadlineOnlyItems = items.filter((item) =>
+            item.type === 'task' && !item.date && item.dueDate === key,
+          )
+          const visibleDayItems = [...dayItems, ...deadlineOnlyItems]
           return <DropZone key={key} id={`month-${key}`} data={{ date: key, minutes: 9 * 60, kind: 'month' }} className={`month-cell ${day.getDay() === 0 || day.getDay() === 6 ? 'is-weekend' : ''} ${day.getMonth() !== monthDate.getMonth() ? 'out-month' : ''} ${key === dateKey(new Date()) ? 'today-cell' : ''}`} disabled>
             <button className="month-date" onClick={() => onSelectDate(day)}>{day.getDate()}</button>
             {rowLaneCounts[row] > 0 && <div className="month-event-spacer" style={{ height: `${rowLaneCounts[row] * 38}px` }} />}
             {taxDeadline && <TaxDeadlineCard deadline={taxDeadline} compact />}
             <div className="month-items">
-              {dayItems.slice(0, 3).map((item) => <MonthItem key={item.id} item={item} onEdit={onEdit} onToggleComplete={onToggleComplete} />)}
-              {dayItems.length > 3 && <button className="more-items" onClick={() => onSelectDate(day)}>+{dayItems.length - 3} more</button>}
+              {visibleDayItems.slice(0, 3).map((item) => <MonthItem key={item.id} item={item} displayDate={key} onEdit={onEdit} onToggleComplete={onToggleComplete} />)}
+              {visibleDayItems.length > 3 && <button className="more-items" onClick={() => onSelectDate(day)}>+{visibleDayItems.length - 3} more</button>}
             </div>
           </DropZone>
         })}
@@ -490,6 +513,7 @@ function App() {
   const [logCaptureId, setLogCaptureId] = useState(null)
   const [logHovered, setLogHovered] = useState(false)
   const [logFocused, setLogFocused] = useState(false)
+  const [spotlightCollapsed, setSpotlightCollapsed] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [editingCaptureId, setEditingCaptureId] = useState(null)
   const [archiveDraft, setArchiveDraft] = useState('')
@@ -558,8 +582,9 @@ function App() {
   const currentDayKey = dateKey(clock)
   const lastTodayKey = useRef(currentDayKey)
   const activeCaptures = useMemo(() => notes
-    .filter((note) => !note.archived && note.text?.trim())
-    .sort((left, right) => right.updatedAt - left.updatedAt), [notes])
+    .filter((note) => !note.archived && note.text?.trim() &&
+      (!note.spotlightSnoozedUntil || note.spotlightSnoozedUntil <= currentDayKey))
+    .sort((left, right) => right.updatedAt - left.updatedAt), [notes, currentDayKey])
   const activeCaptureIndex = Math.max(0, activeCaptures.findIndex((note) => note.id === logCaptureId))
   const logCapture = activeCaptures[activeCaptureIndex]
   const nextEvent = useMemo(() => getNextUpcomingEvent(items, clock), [items, clock])
@@ -589,7 +614,7 @@ function App() {
     pendingTimelineAdjustment.current = null
     isLoadingTimeline.current = false
     window.requestAnimationFrame(() => {
-      calendarScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+      calendarScrollRef.current?.scrollTo({ left: 0 })
     })
   }, [])
 
@@ -1248,30 +1273,41 @@ function App() {
                       : <span className="no-next-event">NO UPCOMING COMMITMENT</span>}
                   </div>
                 </section>
-                <button
-                  className="memory-spotlight capture-log"
-                  type="button"
-                  aria-label={`Open Archive. ${activeCaptures.length} active captures${logCapture ? `. Current capture: ${logCapture.text}` : ''}`}
-                  onClick={() => setArchiveOpen(true)}
+                <section
+                  className={`memory-spotlight capture-log ${spotlightCollapsed ? 'is-collapsed' : ''}`}
                   onPointerEnter={() => setLogHovered(true)}
                   onPointerLeave={() => setLogHovered(false)}
                   onFocus={() => setLogFocused(true)}
                   onBlur={() => setLogFocused(false)}
                 >
-                  <span className="log-heading">
-                    <span className="spotlight-title"><span className="spotlight-track" aria-hidden="true"><span /></span><strong>LOG</strong><span>{activeCaptures.length ? `${String(activeCaptureIndex + 1).padStart(2, '0')} / ${String(activeCaptures.length).padStart(2, '0')}` : 'NO ACTIVE CAPTURES'}</span></span>
-                    <span className="log-open-label"><Archive size={13} /> OPEN ARCHIVE</span>
-                  </span>
-                  <span className="log-entry">
-                    {logCapture
-                      ? <><span className="log-entry-meta">QUICK CAPTURE · {new Date(logCapture.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span><span className="log-entry-text">{logCapture.text}</span></>
-                      : <><span className="log-entry-meta">QUICK CAPTURE</span><span className="log-entry-empty">Nothing captured yet. Quick captures will surface here.</span></>}
-                  </span>
-                </button>
+                  <div className="log-heading">
+                    <span className="spotlight-title"><span className="spotlight-track" aria-hidden="true"><span /></span><strong>MEMORY SPOTLIGHT</strong><span>{activeCaptures.length ? `${String(activeCaptureIndex + 1).padStart(2, '0')} / ${String(activeCaptures.length).padStart(2, '0')}` : 'NO ACTIVE CAPTURES'}</span></span>
+                    <div className="log-heading-actions">
+                      <button type="button" className="log-open-label" onClick={() => setArchiveOpen(true)}><Archive size={13} /> OPEN ARCHIVE</button>
+                      <button type="button" className="spotlight-collapse" aria-expanded={!spotlightCollapsed} onClick={() => setSpotlightCollapsed((collapsed) => !collapsed)}>{spotlightCollapsed ? 'Expand' : 'Collapse'}</button>
+                    </div>
+                  </div>
+                  {!spotlightCollapsed && <>
+                    <div className="log-entry">
+                      {logCapture
+                        ? <><span className="log-entry-meta">QUICK CAPTURE · {new Date(logCapture.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span><span className="log-entry-text">{logCapture.text}</span></>
+                        : <><span className="log-entry-meta">QUICK CAPTURE</span><span className="log-entry-empty">Nothing captured yet. Use Quick capture to save a thought.</span></>}
+                    </div>
+                    {logCapture && <div className="spotlight-actions">
+                      <button type="button" onClick={() => {
+                        setShowArchived(false)
+                        setActiveView('notes')
+                        window.requestAnimationFrame(() => document.getElementById(`note-${logCapture.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                      }}><NotebookPen size={13} /> Open Note</button>
+                      <button type="button" onClick={() => setConversion({ note: logCapture, text: logCapture.text })}><ListTodo size={13} /> Make Task</button>
+                      <button type="button" title="Hide this capture until tomorrow" aria-label="Snooze this capture until tomorrow" onClick={() => updateNote(logCapture.id, { spotlightSnoozedUntil: dateKey(addDays(startOfDay(clock), 1)) })}>Snooze</button>
+                    </div>}
+                  </>}
+                </section>
                 <section className="calendar-panel" aria-label="Scrollable planner timeline">
                   <div className="calendar-toolbar">
-                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label="Browse earlier dates" title="Earlier dates" onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label="Browse later dates" title="Later dates" onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{formatRange(dates[0], weekEnd)}</strong></div>
-                    <div className="calendar-actions"><button className="primary-button new-item-button" onClick={createItem}><Plus size={14} /> New Task or Event</button><button className="icon-button suggest-button" title="Suggest a light day for the next task" aria-label="Suggest a day" onClick={suggestDay}><Sparkles size={16} /></button><button className="view-switch active" onClick={() => setActiveView('week')}>Timeline</button><button className="view-switch" onClick={() => { setMonthDate(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1)); setActiveView('month') }}>Month</button><button className="icon-button pool-toggle" title={poolOpen ? 'Collapse task pool' : 'Show task pool'} aria-label="Toggle task pool" onClick={() => setPoolOpen((value) => !value)}><ListTodo size={17} /></button></div>
+                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label="Browse earlier dates" title="Earlier dates" onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label="Browse later dates" title="Later dates" onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{formatRange(dates[0], weekEnd)}</strong><CalendarViewToggle activeView="week" onWeek={goToToday} onMonth={() => { setMonthDate(new Date(dates[2].getFullYear(), dates[2].getMonth(), 1)); setActiveView('month') }} /></div>
+                    <div className="calendar-actions"><button className="primary-button new-item-button" onClick={createItem}><Plus size={14} /> New Task or Event</button><button className="icon-button suggest-button" title="Suggest a light day for the next task" aria-label="Suggest a day" onClick={suggestDay}><Sparkles size={16} /></button><button className="icon-button pool-toggle" title={poolOpen ? 'Collapse task pool' : 'Show task pool'} aria-label="Toggle task pool" onClick={() => setPoolOpen((value) => !value)}><ListTodo size={17} /></button></div>
                   </div>
                   <div className="mobile-day-stepper"><button aria-label="Previous day" onClick={() => shiftMobileDay(-1)}><ChevronLeft size={16} /></button><strong>{new Date(`${mobileDay}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</strong><button aria-label="Next day" onClick={() => shiftMobileDay(1)}><ChevronRight size={16} /></button></div>
                   <div className="calendar-scroll" ref={calendarScrollRef} onScroll={extendTimeline}>
@@ -1300,14 +1336,10 @@ function App() {
                             <strong>{day.getDate()}</strong>
                             <span className="day-count">{dayItems.length}</span>
                           </div>
-                          <DropZone id={`frog-${key}`} data={{ kind: 'frog', date: key }} className={`frog-slot ${frog ? 'has-frog' : ''}`}>
+                          <DropZone id={`frog-${key}`} data={{ kind: 'frog', date: key }} className={`frog-slot ${frog ? 'has-frog' : ''} ${key === currentDayKey ? 'is-priority-day' : 'is-future-day'}`}>
                             {frog
                               ? <ItemCard item={frog} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropTarget={false} />
-                              : <svg className="empty-frog-mark" viewBox="0 0 64 48" role="img" aria-label="Empty Daily Frog drop zone" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M15 25c0-7 7-12 17-12s17 5 17 12c0 7-7 12-17 12s-17-5-17-12Zm4-9-5-7m31 7 5-7M20 33l-7 7m31-7 7 7M23 13c-1-5 1-8 5-8s6 3 5 8m0 0c-1-5 1-8 5-8s6 3 5 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="1 4" />
-                                <circle cx="27" cy="18" r="1.5" fill="currentColor" />
-                                <circle cx="37" cy="18" r="1.5" fill="currentColor" />
-                              </svg>}
+                              : <button type="button" className="frog-empty-action" onClick={() => { setActiveTab('ready'); setPoolOpen(true) }}><Plus size={15} /><strong>Set Daily Frog</strong><span>Drop one priority here</span></button>}
                           </DropZone>
                           <DropZone id={`tasks-${key}`} data={{ kind: 'regular-task', date: key, index: dayItems.length }} className="day-task-list">
                             {dayItems.map((item) => <ItemCard key={item.id} item={item} onEdit={setEditing} onToggleComplete={toggleComplete} onDelete={deleteItem} dropDate={key} />)}
@@ -1338,7 +1370,12 @@ function App() {
                 {(!isMobile || poolOpen) && <DropZone id="task-pool" data={{ kind: 'pool' }} className="task-pool">
                   <div className="pool-header"><div><div className="pool-title"><Inbox size={17} /><h2>Quest deck</h2><span className="pool-badge">{activeItems.filter((item) => item.type === 'task' && !item.date).length}</span></div><p>Ready when you are.</p></div><button className="icon-button" title="Collapse task deck" aria-label="Collapse task deck" onClick={() => setPoolOpen(false)}><ChevronRight size={17} /></button></div>
                   <form className="task-add-form" onSubmit={openTaskEditor}><Plus size={16} /><input value={taskDraft} onChange={(event) => setTaskDraft(event.target.value)} placeholder="Add a task..." aria-label="New task title"/><button type="submit" aria-label="Add task details"><kbd>↵</kbd></button></form>
-                  <div className="pool-tabs" role="tablist"><button className={activeTab === 'inbox' ? 'active' : ''} onClick={() => setActiveTab('inbox')}>Inbox <span>{activeItems.filter((item) => item.type === 'task' && item.status === 'inbox' && !item.date).length}</span></button><button className={activeTab === 'ready' ? 'active' : ''} onClick={() => setActiveTab('ready')}>Ready <span>{activeItems.filter((item) => item.type === 'task' && item.status === 'ready' && !item.date).length}</span></button><button className={activeTab === 'scheduled' ? 'active' : ''} onClick={() => setActiveTab('scheduled')}>Planned <span>{scheduledCount}</span></button><button className={activeTab === 'completed' ? 'active' : ''} onClick={() => setActiveTab('completed')}>Done <span>{completedCount}</span></button></div>
+                  <div className="pool-tabs" role="tablist">
+                    <button type="button" role="tab" aria-selected={activeTab === 'inbox'} className={activeTab === 'inbox' ? 'active' : ''} onClick={() => setActiveTab('inbox')}>Inbox <span>{activeItems.filter((item) => item.type === 'task' && item.status === 'inbox' && !item.date).length}</span></button>
+                    <button type="button" role="tab" aria-selected={activeTab === 'ready'} className={activeTab === 'ready' ? 'active' : ''} onClick={() => setActiveTab('ready')}>Ready <span>{activeItems.filter((item) => item.type === 'task' && item.status === 'ready' && !item.date).length}</span></button>
+                    <button type="button" role="tab" aria-selected={activeTab === 'scheduled'} className={activeTab === 'scheduled' ? 'active' : ''} onClick={() => setActiveTab('scheduled')}>Planned <span>{scheduledCount}</span></button>
+                    <button type="button" role="tab" aria-selected={activeTab === 'completed'} className={activeTab === 'completed' ? 'active' : ''} onClick={() => setActiveTab('completed')}>Done <span>{completedCount}</span></button>
+                  </div>
                   <div className="pool-list">
                     {activeTab === 'scheduled'
                       ? items.filter((item) => item.date && item.status !== 'completed').map((item) => {
@@ -1360,10 +1397,12 @@ function App() {
                       : activeTab === 'completed'
                         ? items.filter((item) => item.status === 'completed').map((item) => {
                           const category = categories[item.category] || categories['personal-life']
-                          return <div className="completed-row" key={item.id}>
+                          return <div className={`completed-row ${isFixedEvent(item) ? 'is-fixed-event' : ''} ${item.dueDate ? 'has-deadline' : ''} ${item.dueDate && item.dueDate < currentDayKey ? 'is-overdue' : ''}`} key={item.id}>
                             <CompletionCheckbox item={item} onToggleComplete={toggleComplete} />
                             <span className={`completed-category category-${item.category}`}><CategoryMark category={item.category} size={13} /> {category.label}</span>
                             <span className="completed-title">{item.title}</span>
+                            {isFixedEvent(item) && <span className="completed-fixed-label">FIXED</span>}
+                            {!isFixedEvent(item) && item.dueDate && <span className={`completed-deadline-label ${item.dueDate < currentDayKey ? 'is-overdue' : ''}`}>! DUE</span>}
                           </div>
                         })
                         : poolItems.length
@@ -1387,7 +1426,7 @@ function App() {
 
             {activeView === 'month' && <>
               <div className="page-heading month-heading"><div><div className="eyebrow"><span className="eyebrow-mark"><span /><span /><span /><span /></span> A WIDER VIEW</div><h1>Monthly rhythm.</h1><p className="heading-subtitle">See the shape of your commitments at a glance.</p></div><div className="heading-actions"><button className="primary-button" onClick={createItem}><Plus size={16} /> New Task or Event</button></div></div>
-              <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
+              <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong><CalendarViewToggle activeView="month" onWeek={() => setActiveView('week')} onMonth={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} /></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
               <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed' || isFixedEvent(item))} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
               <div className="month-hint"><span>◆ Fixed event</span><span>• Flexible task</span><span>Choose a date to open its week</span></div>
             </>}
