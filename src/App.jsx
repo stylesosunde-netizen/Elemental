@@ -39,12 +39,13 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, getNextUpcomingEvent, isFixedEvent, recordFrogChange, recordScheduleChange, sortFixedEventsChronologically, startOfDay, timelineDates } from './plannerDates'
+import { addDays, dateKey, formatRange, getBizkaiaTaxDeadline, getMultiDayEventSegments, isFixedEvent, recordFrogChange, recordScheduleChange, sortFixedEventsChronologically, startOfDay, timelineDates } from './plannerDates'
 import { LOGBOOK_KEY, TASKS_KEY, createBackup, parseBackup } from './dataBackup'
 import Logbook from './Logbook.jsx'
 import CloudAccount from './CloudAccount.jsx'
 import { useFirebaseAuth } from './firebaseAuthContext.js'
 import { useFirebaseSync } from './firebaseSync.js'
+import { useGoogleCalendarSync } from './googleCalendarSync.js'
 import { prioritizePlannerCollisions } from './plannerDnd.js'
 import './App.css'
 import './ArtDirection.css'
@@ -504,7 +505,7 @@ function App() {
   const [editing, setEditing] = useState(null)
   const [conversion, setConversion] = useState(null)
   const [toast, setToast] = useState('')
-  const [clock, setClock] = useState(() => new Date())
+  const [today, setToday] = useState(() => new Date())
   const [undoItems, setUndoItems] = useState(null)
   const [isDraggingToDeck, setIsDraggingToDeck] = useState(false)
   const [draggedItem, setDraggedItem] = useState(null)
@@ -525,6 +526,7 @@ function App() {
   const pendingTimelineAdjustment = useRef(null)
   const pendingCalendarScrollRestore = useRef(null)
   const preservePlannerDateOnOpen = useRef(false)
+  const previousCalendarView = useRef(false)
   const dragScrollFrame = useRef(null)
   const dragScrollDirection = useRef(0)
   const dragScrollTimestamp = useRef(0)
@@ -537,8 +539,13 @@ function App() {
     data: syncData,
     setters: syncSetters,
   })
+  const googleCalendar = useGoogleCalendarSync({
+    items,
+    setItems,
+    accountId: user?.uid || user?.email || 'local',
+  })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor))
-  const isPlannerView = activeView === 'week' || activeView === 'three-day'
+  const isPlannerView = activeView === 'week' || activeView === 'three-day' || activeView === 'month'
   const dates = useMemo(() => {
     if (activeView === 'three-day') {
       const dayCount = 3 + (timelineBefore + timelineAfter) * 3
@@ -585,16 +592,14 @@ function App() {
     return () => observer.disconnect()
   }, [dates, isMobile, multiDayEventSegments])
   const weekEnd = dates[dates.length - 1]
-  const currentDayKey = dateKey(clock)
+  const currentDayKey = dateKey(today)
   const lastTodayKey = useRef(currentDayKey)
   const activeCaptures = useMemo(() => notes
     .filter((note) => !note.archived && note.text?.trim() &&
       (!note.spotlightSnoozedUntil || note.spotlightSnoozedUntil <= currentDayKey))
     .sort((left, right) => right.updatedAt - left.updatedAt), [notes, currentDayKey])
-  const nextEvent = useMemo(() => getNextUpcomingEvent(items, clock), [items, clock])
-
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(new Date()), 1000)
+    const timer = window.setInterval(() => setToday(new Date()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -613,6 +618,10 @@ function App() {
 
   const goToToday = useCallback(() => {
     const today = new Date()
+    if (activeView === 'month') {
+      setMonthDate(new Date(today.getFullYear(), today.getMonth(), 1))
+      return
+    }
     showTimelineAt(addDays(today, activeView === 'three-day' ? -1 : -2), today)
   }, [activeView, showTimelineAt])
 
@@ -702,6 +711,10 @@ function App() {
   }, [isDraggingToDeck])
 
   function navigateTimeline(direction) {
+    if (activeView === 'month') {
+      setMonthDate((date) => new Date(date.getFullYear(), date.getMonth() + direction, 1))
+      return
+    }
     const daysPerView = activeView === 'three-day' ? 3 : 7
     const scroller = calendarScrollRef.current
     if (!scroller) {
@@ -763,12 +776,20 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isPlannerView) return
+    if (!isPlannerView) {
+      previousCalendarView.current = false
+      return
+    }
     if (preservePlannerDateOnOpen.current) {
       preservePlannerDateOnOpen.current = false
+      previousCalendarView.current = true
+      return
+    }
+    if (previousCalendarView.current) {
       return
     }
     goToToday()
+    previousCalendarView.current = true
   }, [activeView, goToToday, isPlannerView])
 
   useEffect(() => { localStorage.setItem(TASKS_KEY, JSON.stringify(items)) }, [items])
@@ -1134,7 +1155,7 @@ function App() {
   function suggestDay() {
     const target = items.find((item) => item.status !== 'completed' && item.type === 'task' && !item.date)
     if (!target) return notify('Your task pool is clear')
-    const availableDays = dates.map(dateKey).filter((day) => day >= dateKey(clock) && (!target.dueDate || day <= target.dueDate))
+    const availableDays = dates.map(dateKey).filter((day) => day >= currentDayKey && (!target.dueDate || day <= target.dueDate))
     const suggested = availableDays.sort((left, right) => items.filter((item) => item.date === left && item.status !== 'completed').length - items.filter((item) => item.date === right && item.status !== 'completed').length)[0]
     if (suggested) placeItem(target.id, suggested)
     else notify('No day before this task’s due date')
@@ -1188,18 +1209,6 @@ function App() {
   const scheduledCount = activeItems.filter((item) => item.date).length
   const completedCount = items.filter((item) => item.status === 'completed').length
   const visibleNotes = notes.filter((note) => Boolean(note.archived) === showArchived).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
-  const clockParts = new Intl.DateTimeFormat([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(clock)
-  const clockHour = clockParts.find((part) => part.type === 'hour')?.value || '00'
-  const clockMinute = clockParts.find((part) => part.type === 'minute')?.value || '00'
-  const clockSecond = clockParts.find((part) => part.type === 'second')?.value || '00'
-  const weekday = clock.toLocaleDateString([], { weekday: 'short' }).replace('.', '').toUpperCase()
-  const month = clock.toLocaleDateString([], { month: 'short' }).replace('.', '').toUpperCase()
-
   return (
     <DndContext
       sensors={sensors}
@@ -1244,34 +1253,27 @@ function App() {
           <section className={`workspace ${isPlannerView ? 'week-workspace' : ''}`}>
             {isPlannerView && <>
               <div className={`planner-layout ${isMobile && poolOpen ? 'pool-open-mobile' : ''}`}>
-                <section className="planner-clock" aria-label="Clock and next event">
-                  <div className="clock-caption"><span className="clock-signal" /> STUDIO / LOCAL TIME <span className="clock-index">INSTRUMENT 01</span></div>
-                  <time className="clock-display" dateTime={clock.toISOString()} aria-label={clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}>
-                    <span className="clock-main-time"><span>{clockHour}</span><span className="clock-separator">:</span><span>{clockMinute}</span></span>
-                    <span className="clock-seconds">{clockSecond}</span>
-                  </time>
-                  <div
-                    className="clock-minute-track"
-                    role="progressbar"
-                    aria-label="Current minute progress"
-                    aria-valuemin={0}
-                    aria-valuemax={59}
-                    aria-valuenow={clock.getSeconds()}
-                    style={{ '--minute-progress': `${clock.getSeconds() / 60}` }}
-                  ><span /></div>
-                  <div className="clock-date"><strong>{weekday}</strong><span>/</span><strong>{String(clock.getDate()).padStart(2, '0')} {month}</strong></div>
-                  <div className="next-event">
-                    <span className="next-event-label">NEXT FIXED EVENT</span>
-                    {nextEvent
-                      ? <><strong>{nextEvent.item.title}</strong><span>{nextEvent.startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {nextEvent.startsAt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span></>
-                      : <span className="no-next-event">NO UPCOMING COMMITMENT</span>}
-                  </div>
-                </section>
-                <section className={`calendar-panel ${activeView === 'three-day' ? 'three-day-calendar' : ''}`} aria-label="Scrollable planner timeline">
+                <section className={`calendar-panel ${activeView === 'three-day' ? 'three-day-calendar' : ''} ${activeView === 'month' ? 'month-calendar' : ''}`} aria-label="Planner calendar">
                   <div className="calendar-toolbar">
-                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label="Browse earlier dates" title="Earlier dates" onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label="Browse later dates" title="Later dates" onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{formatRange(dates[0], weekEnd)}</strong><CalendarViewToggle activeView={activeView} onWeek={() => setActiveView('week')} onThreeDay={() => setActiveView('three-day')} onMonth={() => { setMonthDate(new Date(dates[0].getFullYear(), dates[0].getMonth(), 1)); setActiveView('month') }} /></div>
-                    <div className="calendar-actions"><button className="primary-button new-item-button" onClick={createItem}><Plus size={14} /> New Task or Event</button><button className="icon-button suggest-button" title="Suggest a light day for the next task" aria-label="Suggest a day" onClick={suggestDay}><Sparkles size={16} /></button><button className="icon-button pool-toggle" title={poolOpen ? 'Collapse task pool' : 'Show task pool'} aria-label="Toggle task pool" onClick={() => setPoolOpen((value) => !value)}><ListTodo size={17} /></button></div>
+                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label={activeView === 'month' ? 'Previous month' : 'Browse earlier dates'} title={activeView === 'month' ? 'Previous month' : 'Earlier dates'} onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label={activeView === 'month' ? 'Next month' : 'Browse later dates'} title={activeView === 'month' ? 'Next month' : 'Later dates'} onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{activeView === 'month' ? monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' }) : formatRange(dates[0], weekEnd)}</strong><CalendarViewToggle activeView={activeView} onWeek={() => { if (activeView === 'month') showTimelineAt(monthDate); setActiveView('week') }} onThreeDay={() => { if (activeView === 'month') showTimelineAt(monthDate); setActiveView('three-day') }} onMonth={() => { setMonthDate(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1)); setActiveView('month') }} /></div>
+                    <div className="calendar-actions">
+                      <button className="calendar-sync-button" type="button" disabled={!googleCalendar.configured || googleCalendar.status === 'connecting' || googleCalendar.status === 'syncing'} title={!googleCalendar.configured ? 'Set VITE_GOOGLE_CALENDAR_CLIENT_ID to connect Google Calendar' : undefined} onClick={() => googleCalendar.connected ? googleCalendar.sync() : googleCalendar.connect()}>
+                        <CalendarDays size={14} />{googleCalendar.status === 'connecting' ? 'Connecting…' : googleCalendar.status === 'syncing' ? 'Syncing…' : googleCalendar.connected ? 'Sync Google' : 'Connect Google'}
+                      </button>
+                      {googleCalendar.connected && <button className="google-disconnect-button" type="button" aria-label="Disconnect Google Calendar" title="Disconnect Google Calendar" onClick={googleCalendar.disconnect}><X size={14} /></button>}
+                      <button className="primary-button new-item-button" onClick={createItem}><Plus size={14} /> New Task or Event</button><button className="icon-button suggest-button" title="Suggest a light day for the next task" aria-label="Suggest a day" onClick={suggestDay}><Sparkles size={16} /></button><button className="icon-button pool-toggle" title={poolOpen ? 'Collapse task pool' : 'Show task pool'} aria-label="Toggle task pool" onClick={() => setPoolOpen((value) => !value)}><ListTodo size={17} /></button>
+                    </div>
                   </div>
+                  {googleCalendar.error && <div className="calendar-sync-error" role="alert">{googleCalendar.error}</div>}
+                  {activeView === 'month' ? <div className="calendar-month-scroll">
+                    <MonthGrid
+                      monthDate={monthDate}
+                      items={items.filter((item) => item.status !== 'completed' || isFixedEvent(item))}
+                      onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }}
+                      onEdit={setEditing}
+                      onToggleComplete={toggleComplete}
+                    />
+                  </div> : <>
                   <div className="mobile-day-stepper"><button aria-label="Previous day" onClick={() => shiftMobileDay(-1)}><ChevronLeft size={16} /></button><strong>{new Date(`${mobileDay}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</strong><button aria-label="Next day" onClick={() => shiftMobileDay(1)}><ChevronRight size={16} /></button></div>
                   <div className="calendar-scroll" ref={calendarScrollRef} onScroll={extendTimeline}>
                     <div className={`calendar-grid ${activeView === 'three-day' ? 'is-three-day' : ''}`} ref={calendarGridRef}>
@@ -1329,6 +1331,8 @@ function App() {
                     </div>
                   </div>
                   <div className="calendar-footnote"><span className="event-legend"><CalendarDays size={13} /> Fixed event</span><span className="task-legend"><Circle size={9} /> Flexible task</span><span className="working-hours">Scroll sideways to browse dates · Drag to reorder</span></div>
+                  </>}
+                  {activeView === 'month' && <div className="calendar-footnote"><span className="event-legend"><CalendarDays size={13} /> Fixed event</span><span className="task-legend"><Circle size={9} /> Flexible task</span><span className="working-hours">{activeItems.filter((item) => item.type === 'event').length} fixed events · {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div>}
                 </section>
                 {(!isMobile || poolOpen) && <DropZone id="task-pool" data={{ kind: 'pool' }} className="task-pool">
                   <div className="pool-header"><div><div className="pool-title"><Inbox size={17} /><h2>Quest deck</h2><span className="pool-badge">{activeItems.filter((item) => item.type === 'task' && !item.date).length}</span></div><p>Ready when you are.</p></div><button className="icon-button" title="Collapse task deck" aria-label="Collapse task deck" onClick={() => setPoolOpen(false)}><ChevronRight size={17} /></button></div>
@@ -1385,13 +1389,6 @@ function App() {
                   </div>
                 </DropZone>}
               </div>
-            </>}
-
-            {activeView === 'month' && <>
-              <div className="page-heading month-heading"><div><div className="eyebrow"><span className="eyebrow-mark"><span /><span /><span /><span /></span> A WIDER VIEW</div><h1>Monthly rhythm.</h1><p className="heading-subtitle">See the shape of your commitments at a glance.</p></div><div className="heading-actions"><button className="primary-button" onClick={createItem}><Plus size={16} /> New Task or Event</button></div></div>
-              <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong><CalendarViewToggle activeView="month" onWeek={() => setActiveView('week')} onThreeDay={() => setActiveView('three-day')} onMonth={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} /></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
-              <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed' || isFixedEvent(item))} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
-              <div className="month-hint"><span>◆ Fixed event</span><span>• Flexible task</span><span>Choose a date to open its week</span></div>
             </>}
 
             {activeView === 'notes' && <>

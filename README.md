@@ -32,3 +32,9 @@ Deploy the included [firestore.rules](./firestore.rules) and [storage.rules](./s
 Sign in with Google from the planner header to enable per-account sync. Existing browser data is merged on sign-in: cloud records replace local records with matching IDs, local-only records are added, and cloud deletion tombstones keep deleted records from returning. Tasks, ideas, XP/history, and Logbook entries sync through Firestore; invoice/expense attachments use Firebase Storage. Firestore uses IndexedDB persistence, and the app continues to load from browser-local data when offline or signed out. Changes made offline are queued for sync when connectivity returns.
 
 Cloud sync must be configured and the Firebase rules deployed before it can work. Verify the Google provider and the deployed site domain in Firebase Console when authentication is rejected.
+
+## Google Calendar sync
+
+Google Calendar sync is separate from Firebase cloud sync. In Google Cloud Console, enable the Google Calendar API, configure the OAuth consent screen, and create an OAuth 2.0 **Web application** client. Add the app's origin to the client's authorized JavaScript origins, then set `VITE_GOOGLE_CALENDAR_CLIENT_ID` in `.env.local` and rebuild/redeploy the app.
+
+Choose **Connect Google** in the planner to authorize access to the primary calendar. Elemental syncs timed events in both directions while the planner is open, checking for changes about once a minute. Existing timed events are imported into the planner; all-day events are not supported. Recurring events are synced as individual occurrences. Elemental changes take precedence if an event was edited in both places, and deleting an event in either place deletes its counterpart. Changes made while disconnected sync on the next connection.
