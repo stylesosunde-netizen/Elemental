@@ -2470,3 +2470,121 @@ select:focus-visible,
   .log-entry-text { font-size: 15px; -webkit-line-clamp: 3; }
   .spotlight-actions button { min-height: 30px; font-size: 9px; }
 }
+
+.planner-layout {
+  grid-template-areas:
+    "clock calendar"
+    "deck calendar";
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.planner-clock {
+  border: 1px solid #e8ebf1;
+  border-top: 1px solid #e8ebf1;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px #2535530a;
+}
+
+.calendar-panel {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e8ebf1;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px #2535530a;
+}
+
+.calendar-grid .day-column {
+  background-color: #fff;
+  background-image: none;
+  border-color: #edf0f4;
+}
+
+.calendar-grid .day-column.is-today {
+  background-color: #f8f9ff;
+}
+
+.calendar-grid.is-three-day {
+  width: 100%;
+  min-width: 720px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calendar-view-toggle {
+  padding: 2px;
+  background: #f4f5f8;
+  border-color: #e8ebf1;
+  border-radius: 8px;
+}
+
+.calendar-view-toggle button {
+  border-radius: 6px;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+.calendar-view-toggle button.active {
+  color: var(--ink);
+  background: #fff;
+  border-color: #e8ebf1;
+  box-shadow: 0 1px 3px #25355318;
+}
+
+.item-card.is-event.is-complete,
+.day-column .item-card.is-event.is-complete {
+  min-height: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.item-card.is-event.is-complete .item-card-top {
+  align-items: center;
+  gap: 8px;
+}
+
+.item-card.is-event.is-complete .item-icon,
+.item-card.is-event.is-complete .fixed-mark,
+.item-card.is-event.is-complete .drag-handle,
+.item-card.is-event.is-complete .event-time,
+.item-card.is-event.is-complete .item-meta,
+.day-column .item-card.is-event.is-complete .event-time,
+.day-column .item-card.is-event.is-complete .item-meta {
+  display: none;
+}
+
+.item-card.is-event.is-complete .item-title {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-card.is-event.is-complete .completion-checkbox {
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+}
+
+.notes-list-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 650px) {
+  .planner-layout {
+    grid-template-areas: "clock" "deck" "calendar";
+    grid-template-rows: auto;
+  }
+
+  .calendar-grid.is-three-day {
+    width: max-content;
+    min-width: 0;
+    grid-template-columns: none;
+    grid-auto-columns: min(84vw, 310px);
+  }
+}

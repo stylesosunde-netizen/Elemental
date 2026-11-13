@@ -183,10 +183,11 @@ function TaxDeadlineCard({ deadline, compact = false }) {
   )
 }
 
-function CalendarViewToggle({ activeView, onWeek, onMonth }) {
+function CalendarViewToggle({ activeView, onWeek, onThreeDay, onMonth }) {
   return (
     <div className="calendar-view-toggle" role="group" aria-label="Calendar view">
       <button type="button" className={activeView === 'week' ? 'active' : ''} aria-pressed={activeView === 'week'} onClick={onWeek}>Week</button>
+      <button type="button" className={activeView === 'three-day' ? 'active' : ''} aria-pressed={activeView === 'three-day'} onClick={onThreeDay}>3 Days</button>
       <button type="button" className={activeView === 'month' ? 'active' : ''} aria-pressed={activeView === 'month'} onClick={onMonth}>Month</button>
     </div>
   )
@@ -510,10 +511,6 @@ function App() {
   const [draggedItemWidth, setDraggedItemWidth] = useState(null)
   const [timelineBefore, setTimelineBefore] = useState(0)
   const [timelineAfter, setTimelineAfter] = useState(0)
-  const [logCaptureId, setLogCaptureId] = useState(null)
-  const [logHovered, setLogHovered] = useState(false)
-  const [logFocused, setLogFocused] = useState(false)
-  const [spotlightCollapsed, setSpotlightCollapsed] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [editingCaptureId, setEditingCaptureId] = useState(null)
   const [archiveDraft, setArchiveDraft] = useState('')
@@ -541,7 +538,16 @@ function App() {
     setters: syncSetters,
   })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor))
-  const dates = useMemo(() => timelineDates(weekStart, timelineBefore, timelineAfter), [weekStart, timelineBefore, timelineAfter])
+  const isPlannerView = activeView === 'week' || activeView === 'three-day'
+  const dates = useMemo(() => {
+    if (activeView === 'three-day') {
+      const dayCount = 3 + (timelineBefore + timelineAfter) * 3
+      return Array.from({ length: dayCount }, (_, index) =>
+        addDays(weekStart, index - timelineBefore * 3),
+      )
+    }
+    return timelineDates(weekStart, timelineBefore, timelineAfter)
+  }, [activeView, weekStart, timelineBefore, timelineAfter])
   const multiDayEventSegments = useMemo(() => {
     return getMultiDayEventSegments(items, dates)
   }, [items, dates])
@@ -585,20 +591,7 @@ function App() {
     .filter((note) => !note.archived && note.text?.trim() &&
       (!note.spotlightSnoozedUntil || note.spotlightSnoozedUntil <= currentDayKey))
     .sort((left, right) => right.updatedAt - left.updatedAt), [notes, currentDayKey])
-  const activeCaptureIndex = Math.max(0, activeCaptures.findIndex((note) => note.id === logCaptureId))
-  const logCapture = activeCaptures[activeCaptureIndex]
   const nextEvent = useMemo(() => getNextUpcomingEvent(items, clock), [items, clock])
-
-  useEffect(() => {
-    if (activeView !== 'week' || archiveOpen || logHovered || logFocused || activeCaptures.length < 2) return undefined
-    const timer = window.setInterval(() => {
-      setLogCaptureId((currentId) => {
-        const currentIndex = activeCaptures.findIndex((capture) => capture.id === currentId)
-        return activeCaptures[(currentIndex < 0 ? 0 : currentIndex + 1) % activeCaptures.length].id
-      })
-    }, 12_000)
-    return () => window.clearInterval(timer)
-  }, [activeCaptures, activeView, archiveOpen, logFocused, logHovered])
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 1000)
@@ -620,8 +613,8 @@ function App() {
 
   const goToToday = useCallback(() => {
     const today = new Date()
-    showTimelineAt(addDays(today, -2), today)
-  }, [showTimelineAt])
+    showTimelineAt(addDays(today, activeView === 'three-day' ? -1 : -2), today)
+  }, [activeView, showTimelineAt])
 
   const stopDragAutoScroll = useCallback(() => {
     dragScrollDirection.current = 0
@@ -709,9 +702,10 @@ function App() {
   }, [isDraggingToDeck])
 
   function navigateTimeline(direction) {
+    const daysPerView = activeView === 'three-day' ? 3 : 7
     const scroller = calendarScrollRef.current
     if (!scroller) {
-      showTimelineAt(addDays(weekStart, direction * 7))
+      showTimelineAt(addDays(weekStart, direction * daysPerView))
       return
     }
     const atStart = scroller.scrollLeft <= 8
@@ -769,13 +763,13 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (activeView !== 'week') return
+    if (!isPlannerView) return
     if (preservePlannerDateOnOpen.current) {
       preservePlannerDateOnOpen.current = false
       return
     }
     goToToday()
-  }, [activeView, goToToday])
+  }, [activeView, goToToday, isPlannerView])
 
   useEffect(() => { localStorage.setItem(TASKS_KEY, JSON.stringify(items)) }, [items])
   useEffect(() => { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)) }, [notes])
@@ -789,8 +783,9 @@ function App() {
       if (lastTodayKey.current !== todayKey) {
         const previousTodayKey = lastTodayKey.current
         lastTodayKey.current = todayKey
-        if (dateKey(addDays(weekStart, 2)) === previousTodayKey) {
-          setWeekStart(addDays(startOfDay(now), -2))
+        const todayOffset = activeView === 'three-day' ? 1 : 2
+        if (dateKey(addDays(weekStart, todayOffset)) === previousTodayKey) {
+          setWeekStart(addDays(startOfDay(now), -todayOffset))
           setTimelineBefore(0)
           setTimelineAfter(0)
           pendingTimelineAdjustment.current = null
@@ -800,7 +795,7 @@ function App() {
       }
     }, 30_000)
     return () => window.clearInterval(timer)
-  }, [weekStart])
+  }, [activeView, weekStart])
   useEffect(() => {
     function onKeyDown(event) {
       const target = event.target
@@ -1220,11 +1215,10 @@ function App() {
           <header className="topbar">
             <div className="topbar-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div><span>elemental</span></div>
             <nav className="top-navigation" aria-label="Main navigation">
-              <button className={activeView === 'week' ? 'active' : ''} aria-current={activeView === 'week' ? 'page' : undefined} onClick={() => {
-                if (activeView === 'week') goToToday()
+              <button className={isPlannerView ? 'active' : ''} aria-current={isPlannerView ? 'page' : undefined} onClick={() => {
+                if (isPlannerView) goToToday()
                 else setActiveView('week')
               }}>Planner</button>
-              <button className={activeView === 'month' ? 'active' : ''} aria-current={activeView === 'month' ? 'page' : undefined} onClick={() => setActiveView('month')}>Month</button>
               <button className={activeView === 'notes' ? 'active' : ''} aria-current={activeView === 'notes' ? 'page' : undefined} onClick={() => setActiveView('notes')}>Ideas Inbox</button>
               <button className={activeView === 'logbook' ? 'active' : ''} aria-current={activeView === 'logbook' ? 'page' : undefined} onClick={() => setActiveView('logbook')}>Logbook</button>
             </nav>
@@ -1247,8 +1241,8 @@ function App() {
             </div>
           </header>
 
-          <section className={`workspace ${activeView === 'week' ? 'week-workspace' : ''}`}>
-            {activeView === 'week' && <>
+          <section className={`workspace ${isPlannerView ? 'week-workspace' : ''}`}>
+            {isPlannerView && <>
               <div className={`planner-layout ${isMobile && poolOpen ? 'pool-open-mobile' : ''}`}>
                 <section className="planner-clock" aria-label="Clock and next event">
                   <div className="clock-caption"><span className="clock-signal" /> STUDIO / LOCAL TIME <span className="clock-index">INSTRUMENT 01</span></div>
@@ -1273,45 +1267,14 @@ function App() {
                       : <span className="no-next-event">NO UPCOMING COMMITMENT</span>}
                   </div>
                 </section>
-                <section
-                  className={`memory-spotlight capture-log ${spotlightCollapsed ? 'is-collapsed' : ''}`}
-                  onPointerEnter={() => setLogHovered(true)}
-                  onPointerLeave={() => setLogHovered(false)}
-                  onFocus={() => setLogFocused(true)}
-                  onBlur={() => setLogFocused(false)}
-                >
-                  <div className="log-heading">
-                    <span className="spotlight-title"><span className="spotlight-track" aria-hidden="true"><span /></span><strong>MEMORY SPOTLIGHT</strong><span>{activeCaptures.length ? `${String(activeCaptureIndex + 1).padStart(2, '0')} / ${String(activeCaptures.length).padStart(2, '0')}` : 'NO ACTIVE CAPTURES'}</span></span>
-                    <div className="log-heading-actions">
-                      <button type="button" className="log-open-label" onClick={() => setArchiveOpen(true)}><Archive size={13} /> OPEN ARCHIVE</button>
-                      <button type="button" className="spotlight-collapse" aria-expanded={!spotlightCollapsed} onClick={() => setSpotlightCollapsed((collapsed) => !collapsed)}>{spotlightCollapsed ? 'Expand' : 'Collapse'}</button>
-                    </div>
-                  </div>
-                  {!spotlightCollapsed && <>
-                    <div className="log-entry">
-                      {logCapture
-                        ? <><span className="log-entry-meta">QUICK CAPTURE · {new Date(logCapture.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span><span className="log-entry-text">{logCapture.text}</span></>
-                        : <><span className="log-entry-meta">QUICK CAPTURE</span><span className="log-entry-empty">Nothing captured yet. Use Quick capture to save a thought.</span></>}
-                    </div>
-                    {logCapture && <div className="spotlight-actions">
-                      <button type="button" onClick={() => {
-                        setShowArchived(false)
-                        setActiveView('notes')
-                        window.requestAnimationFrame(() => document.getElementById(`note-${logCapture.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
-                      }}><NotebookPen size={13} /> Open Note</button>
-                      <button type="button" onClick={() => setConversion({ note: logCapture, text: logCapture.text })}><ListTodo size={13} /> Make Task</button>
-                      <button type="button" title="Hide this capture until tomorrow" aria-label="Snooze this capture until tomorrow" onClick={() => updateNote(logCapture.id, { spotlightSnoozedUntil: dateKey(addDays(startOfDay(clock), 1)) })}>Snooze</button>
-                    </div>}
-                  </>}
-                </section>
-                <section className="calendar-panel" aria-label="Scrollable planner timeline">
+                <section className={`calendar-panel ${activeView === 'three-day' ? 'three-day-calendar' : ''}`} aria-label="Scrollable planner timeline">
                   <div className="calendar-toolbar">
-                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label="Browse earlier dates" title="Earlier dates" onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label="Browse later dates" title="Later dates" onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{formatRange(dates[0], weekEnd)}</strong><CalendarViewToggle activeView="week" onWeek={goToToday} onMonth={() => { setMonthDate(new Date(dates[2].getFullYear(), dates[2].getMonth(), 1)); setActiveView('month') }} /></div>
+                    <div className="week-switcher"><button className="today-button" onClick={goToToday}>Today</button><button aria-label="Browse earlier dates" title="Earlier dates" onClick={() => navigateTimeline(-1)}><ChevronLeft size={17} /></button><button aria-label="Browse later dates" title="Later dates" onClick={() => navigateTimeline(1)}><ChevronRight size={17} /></button><strong>{formatRange(dates[0], weekEnd)}</strong><CalendarViewToggle activeView={activeView} onWeek={() => setActiveView('week')} onThreeDay={() => setActiveView('three-day')} onMonth={() => { setMonthDate(new Date(dates[0].getFullYear(), dates[0].getMonth(), 1)); setActiveView('month') }} /></div>
                     <div className="calendar-actions"><button className="primary-button new-item-button" onClick={createItem}><Plus size={14} /> New Task or Event</button><button className="icon-button suggest-button" title="Suggest a light day for the next task" aria-label="Suggest a day" onClick={suggestDay}><Sparkles size={16} /></button><button className="icon-button pool-toggle" title={poolOpen ? 'Collapse task pool' : 'Show task pool'} aria-label="Toggle task pool" onClick={() => setPoolOpen((value) => !value)}><ListTodo size={17} /></button></div>
                   </div>
                   <div className="mobile-day-stepper"><button aria-label="Previous day" onClick={() => shiftMobileDay(-1)}><ChevronLeft size={16} /></button><strong>{new Date(`${mobileDay}T12:00:00`).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</strong><button aria-label="Next day" onClick={() => shiftMobileDay(1)}><ChevronRight size={16} /></button></div>
                   <div className="calendar-scroll" ref={calendarScrollRef} onScroll={extendTimeline}>
-                    <div className="calendar-grid" ref={calendarGridRef}>
+                    <div className={`calendar-grid ${activeView === 'three-day' ? 'is-three-day' : ''}`} ref={calendarGridRef}>
                       {dates.map((day) => {
                         const key = dateKey(day)
                         const taxDeadline = getBizkaiaTaxDeadline(day)
@@ -1426,7 +1389,7 @@ function App() {
 
             {activeView === 'month' && <>
               <div className="page-heading month-heading"><div><div className="eyebrow"><span className="eyebrow-mark"><span /><span /><span /><span /></span> A WIDER VIEW</div><h1>Monthly rhythm.</h1><p className="heading-subtitle">See the shape of your commitments at a glance.</p></div><div className="heading-actions"><button className="primary-button" onClick={createItem}><Plus size={16} /> New Task or Event</button></div></div>
-              <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong><CalendarViewToggle activeView="month" onWeek={() => setActiveView('week')} onMonth={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} /></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
+              <div className="month-toolbar"><div className="week-switcher"><button className="today-button" onClick={() => setMonthDate(new Date())}>Today</button><button aria-label="Previous month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><button aria-label="Next month" onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}><ChevronRight size={17} /></button><strong>{monthDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}</strong><CalendarViewToggle activeView="month" onWeek={() => setActiveView('week')} onThreeDay={() => setActiveView('three-day')} onMonth={() => setMonthDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} /></div><div className="month-stats"><span><i className="stat-dot event-dot" /> {activeItems.filter((item) => item.type === 'event').length} fixed events</span><span><i className="stat-dot task-dot" /> {activeItems.filter((item) => item.type === 'task' && item.date).length} planned tasks</span></div></div>
               <MonthGrid monthDate={monthDate} items={items.filter((item) => item.status !== 'completed' || isFixedEvent(item))} onSelectDate={(day) => { preservePlannerDateOnOpen.current = true; showTimelineAt(day); setActiveView('week') }} onEdit={setEditing} onToggleComplete={toggleComplete} />
               <div className="month-hint"><span>◆ Fixed event</span><span>• Flexible task</span><span>Choose a date to open its week</span></div>
             </>}
@@ -1435,7 +1398,7 @@ function App() {
               <div className="page-heading notes-heading"><div><div className="eyebrow"><NotebookPen size={13} /> THOUGHTS, BEFORE THEY HAVE TO BE ANYTHING</div><h1>Ideas inbox.</h1><p className="heading-subtitle">Get it out of your head. Sort it out when you’re ready.</p></div><span className="notes-total">{notes.filter((note) => !note.archived).length} notes</span></div>
               <div className="notes-layout">
                 <section className="capture-panel"><div className="capture-panel-heading"><span className="capture-symbol"><Sparkles size={16} /></span><div><strong>Scratchpad</strong><span>Unfiltered is welcome.</span></div><kbd><Command size={12} /> N</kbd></div><form onSubmit={addNote}><textarea ref={captureRef} value={captureDraft} onChange={(event) => setCaptureDraft(event.target.value)} placeholder="A thought, a reminder, a half-formed idea..." rows={4} aria-label="Capture a note"/><div className="capture-footer"><span>Only you can see these notes</span><button className="primary-button" type="submit" disabled={!captureDraft.trim()}><Plus size={15} /> Save thought</button></div></form></section>
-                <div className="notes-list-toolbar"><strong>{showArchived ? 'Archived notes' : 'Ideas inbox'} <span>{visibleNotes.length}</span></strong><button className="text-button" onClick={() => setShowArchived((value) => !value)}><Archive size={14} /> {showArchived ? 'Show active' : 'Show archived'}</button></div>
+                <div className="notes-list-toolbar"><strong>{showArchived ? 'Archived notes' : 'Ideas inbox'} <span>{visibleNotes.length}</span></strong><div><button className="text-button" onClick={() => setArchiveOpen(true)}><Archive size={14} /> Quick capture archive</button><button className="text-button" onClick={() => setShowArchived((value) => !value)}><Archive size={14} /> {showArchived ? 'Show active' : 'Show archived'}</button></div></div>
                 <section className="notes-list">{visibleNotes.map((note) => <article id={`note-${note.id}`} className={`note-card ${note.pinned ? 'pinned' : ''}`} key={note.id}><div className="note-card-head"><span className="note-date">{new Date(note.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} · {new Date(note.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><div className="note-tools"><button className={note.pinned ? 'active' : ''} title={note.pinned ? 'Unpin note' : 'Pin note'} aria-label={note.pinned ? 'Unpin note' : 'Pin note'} onClick={() => updateNote(note.id, { pinned: !note.pinned })}><Pin size={14} /></button><button title={note.archived ? 'Restore note' : 'Archive note'} aria-label={note.archived ? 'Restore note' : 'Archive note'} onClick={() => updateNote(note.id, { archived: !note.archived })}><Archive size={14} /></button><button title="Delete note" aria-label="Delete note" onClick={() => setNotes((previous) => previous.filter((record) => record.id !== note.id))}><Trash2 size={14} /></button></div></div><textarea value={note.text} aria-label="Edit note" onChange={(event) => updateNote(note.id, { text: event.target.value })} rows={Math.max(2, Math.min(6, note.text.split('\n').length + 1))}/><div className="note-card-footer"><span>{items.some((item) => item.sourceNoteId === note.id) ? 'Tasks linked' : 'Idea'}</span><button onClick={() => { setConversion({ note, text: note.text }); }}><ListTodo size={14} /> Turn into task</button></div></article>)}{visibleNotes.length === 0 && <div className="notes-empty"><div className="empty-icon"><NotebookPen size={21} /></div><strong>{showArchived ? 'Nothing archived yet.' : 'Your mind can be a little quieter now.'}</strong><span>{showArchived ? 'Archived thoughts will wait here.' : 'Drop the loose thoughts here; nothing gets scheduled until you choose.'}</span></div>}</section>
               </div>
             </>}
