@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isFixedEvent } from './plannerDates'
 import { fullSyncWindow, googleEventBody, googleSnapshot, isInSyncWindow, itemFromGoogleEvent, localSnapshot } from './googleCalendarEvents'
+import { interruptionMessage, isInterruption, waitUntilVisible, withRetries } from './googleRequest'
 import { AUTHORIZATION_TIMEOUT_MS, describeAuthorizationError, timeoutMessage, withTimeout } from './googleAuthErrors'
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID
@@ -78,9 +79,13 @@ function writeSyncState(accountId, state) {
   localStorage.setItem(storageKey(accountId), JSON.stringify(state))
 }
 
-async function calendarRequest(token, url, method = 'GET', body) {
+async function calendarRequestOnce(token, url, method, body) {
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), CALENDAR_REQUEST_TIMEOUT_MS)
+  let timedOut = false
+  const timeout = window.setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, CALENDAR_REQUEST_TIMEOUT_MS)
   try {
     const response = await fetch(url, {
       method,
@@ -99,15 +104,23 @@ async function calendarRequest(token, url, method = 'GET', body) {
     if (response.status === 204) return null
     return await response.json()
   } catch (requestError) {
-    if (requestError instanceof Error && requestError.name === 'AbortError') {
-      throw new Error('Google Calendar request timed out. Check your connection and try syncing again.', {
+    // Only report a timeout when our own timer fired; the browser also cancels requests
+    // (AbortError / TypeError), e.g. while the tab is hidden during Google sign-in.
+    if (timedOut || isInterruption(requestError)) {
+      const interrupted = new Error(interruptionMessage({ method, url, timedOut, error: requestError }), {
         cause: requestError,
       })
+      interrupted.interrupted = true
+      throw interrupted
     }
     throw requestError
   } finally {
     window.clearTimeout(timeout)
   }
+}
+
+function calendarRequest(token, url, method = 'GET', body) {
+  return withRetries(() => calendarRequestOnce(token, url, method, body), { method })
 }
 
 async function getGoogleAccountEmail(token) {
@@ -362,12 +375,16 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
         ? requestAccessToken(preloaded, 'consent')
         : loadGoogleIdentity().then((oauth) => requestAccessToken(oauth, 'consent'))
       const token = await tokenRequest
+      await waitUntilVisible()
       const googleEmail = await getGoogleAccountEmail(token.accessToken)
       tokenRef.current = token.accessToken
       tokenExpiresAtRef.current = token.expiresAt
       syncAccountIdRef.current = `${accountId || 'local'}:${googleEmail}`
       syncStateRef.current = readSyncState(syncAccountIdRef.current)
       setConnected(true)
+      // After the Google sign-in tab closes, wait until Elemental is on screen again so
+      // the browser does not pause or cancel the first sync's requests.
+      await waitUntilVisible()
       await sync(token.accessToken)
     } catch (connectError) {
       setError(connectError instanceof Error ? connectError.message : 'Could not connect Google Calendar.')
