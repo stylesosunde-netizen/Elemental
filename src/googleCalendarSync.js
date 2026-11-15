@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isFixedEvent } from './plannerDates'
 import { googleEventBody, googleSnapshot, itemFromGoogleEvent, localSnapshot } from './googleCalendarEvents'
+import { AUTHORIZATION_TIMEOUT_MS, describeAuthorizationError, timeoutMessage, withTimeout } from './googleAuthErrors'
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID
 const TOKEN_SCOPE = 'https://www.googleapis.com/auth/calendar.events openid email'
@@ -37,7 +38,10 @@ function loadGoogleIdentity() {
 }
 
 function requestAccessToken(oauth, prompt) {
-  return new Promise((resolve, reject) => {
+  const origin = window.location.origin
+  // The executor runs synchronously, so when `oauth` is already loaded the popup
+  // opens inside the user's tap and is not blocked by the browser.
+  const authorization = new Promise((resolve, reject) => {
     const tokenClient = oauth.initTokenClient({
       client_id: CLIENT_ID,
       scope: TOKEN_SCOPE,
@@ -49,10 +53,11 @@ function requestAccessToken(oauth, prompt) {
           expiresAt: Date.now() + (Number(response.expires_in) || 3600) * 1000,
         })
       },
-      error_callback: (error) => reject(new Error(error.message || 'Google authorization failed.')),
+      error_callback: (error) => reject(new Error(describeAuthorizationError(error, origin))),
     })
     tokenClient.requestAccessToken({ prompt })
   })
+  return withTimeout(authorization, AUTHORIZATION_TIMEOUT_MS, timeoutMessage(origin), window)
 }
 
 function storageKey(accountId) {
@@ -161,6 +166,11 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
   useEffect(() => {
     itemsRef.current = items
   }, [items])
+
+  useEffect(() => {
+    // Preload Google Identity Services so Connect Google can open its popup immediately.
+    if (CLIENT_ID) loadGoogleIdentity().catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (accountIdRef.current === accountId) return
@@ -332,8 +342,13 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
     setStatus('connecting')
     setError('')
     try {
-      const oauth = await loadGoogleIdentity()
-      const token = await requestAccessToken(oauth, 'consent')
+      // Request the token before any await when the script is preloaded, so the
+      // popup is still tied to the tap (Safari blocks popups opened after an await).
+      const preloaded = window.google?.accounts?.oauth2
+      const tokenRequest = preloaded
+        ? requestAccessToken(preloaded, 'consent')
+        : loadGoogleIdentity().then((oauth) => requestAccessToken(oauth, 'consent'))
+      const token = await tokenRequest
       const googleEmail = await getGoogleAccountEmail(token.accessToken)
       tokenRef.current = token.accessToken
       tokenExpiresAtRef.current = token.expiresAt
