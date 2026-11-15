@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isFixedEvent } from './plannerDates'
+import { syncFailureSummary } from './googleRequest'
 import { fullSyncWindow, googleEventBody, googleSnapshot, isInSyncWindow, itemFromGoogleEvent, localSnapshot } from './googleCalendarEvents'
 import { interruptionMessage, isInterruption, waitUntilVisible, withRetries } from './googleRequest'
 import { AUTHORIZATION_TIMEOUT_MS, describeAuthorizationError, timeoutMessage, withTimeout } from './googleAuthErrors'
@@ -237,19 +238,31 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
       const remotePulls = new Map()
       const removals = new Set()
       const seenGoogleIds = new Set()
+      const failures = []
+      // A single event that cannot be written to Google must not stop the rest of the
+      // sync (and especially not the import of Google events into Elemental).
+      const tryWrite = async (item, write) => {
+        try {
+          return { ok: true, value: await write() }
+        } catch (writeError) {
+          if (writeError instanceof Error && writeError.message.includes('(401)')) throw writeError
+          failures.push({ title: item?.title || item?.summary || 'Untitled event', message: writeError instanceof Error ? writeError.message : String(writeError) })
+          return { ok: false }
+        }
+      }
 
       for (const [googleId, mapping] of Object.entries(mappings)) {
         const remote = googleById.get(googleId)
         const local = localById.get(mapping.itemId) || localByGoogleId.get(googleId)
         if (!remote && !fullSync) {
           if (!local) {
-            await deleteGoogleEvent(token, googleId)
-            delete mappings[googleId]
+            const removed = await tryWrite(mapping.snapshot, () => deleteGoogleEvent(token, googleId))
+            if (removed.ok) delete mappings[googleId]
           } else {
             const localData = localSnapshot(local)
             if (!mapping.snapshot || JSON.stringify(localData) !== JSON.stringify(mapping.snapshot)) {
-              const updated = await calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(googleId)}?sendUpdates=none`, 'PATCH', googleEventBody(local))
-              mappings[googleId] = { itemId: local.id, snapshot: localData, updatedAt: updated.updated }
+              const updated = await tryWrite(local, () => calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(googleId)}?sendUpdates=none`, 'PATCH', googleEventBody(local)))
+              if (updated.ok) mappings[googleId] = { itemId: local.id, snapshot: localData, updatedAt: updated.value.updated }
             }
           }
           continue
@@ -265,8 +278,8 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
         }
         seenGoogleIds.add(googleId)
         if (!local) {
-          await deleteGoogleEvent(token, googleId)
-          delete mappings[googleId]
+          const removed = await tryWrite(remote, () => deleteGoogleEvent(token, googleId))
+          if (removed.ok) delete mappings[googleId]
           continue
         }
         const remoteData = googleSnapshot(remote)
@@ -278,8 +291,8 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
         const localData = localSnapshot(local)
         const baseline = mapping.snapshot
         if (!baseline || JSON.stringify(localData) !== JSON.stringify(baseline)) {
-          const updated = await calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(googleId)}?sendUpdates=none`, 'PATCH', googleEventBody(local))
-          mappings[googleId] = { itemId: local.id, snapshot: localData, updatedAt: updated.updated }
+          const updated = await tryWrite(local, () => calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(googleId)}?sendUpdates=none`, 'PATCH', googleEventBody(local)))
+          if (updated.ok) mappings[googleId] = { itemId: local.id, snapshot: localData, updatedAt: updated.value.updated }
         } else if (JSON.stringify(remoteData) !== JSON.stringify(baseline)) {
           remotePulls.set(local.id, { expected: localData, snapshot: remoteData, googleId })
           mappings[googleId] = { itemId: local.id, snapshot: remoteData, updatedAt: remote.updated }
@@ -296,9 +309,12 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
         let updatedAt = remote.updated
         if (local) {
           if (JSON.stringify(localSnapshot(local)) !== JSON.stringify(snapshot)) {
-            const updated = await calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(remote.id)}?sendUpdates=none`, 'PATCH', googleEventBody(local))
-            baseline = localSnapshot(local)
-            updatedAt = updated.updated
+            // If this update fails, the Google version stays the baseline so it is retried.
+            const updated = await tryWrite(local, () => calendarRequest(token, `${CALENDAR_API_URL}/${encodeURIComponent(remote.id)}?sendUpdates=none`, 'PATCH', googleEventBody(local)))
+            if (updated.ok) {
+              baseline = localSnapshot(local)
+              updatedAt = updated.value.updated
+            }
           }
           if (local.googleCalendarId !== remote.id) {
             updates.set(local.id, { ...local, googleCalendarId: remote.id })
@@ -315,7 +331,9 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
       for (const local of localEvents) {
         if (removals.has(local.id)) continue
         if (mappedItemIds.has(local.id) || (local.googleCalendarId && mappings[local.googleCalendarId])) continue
-        const response = await calendarRequest(token, `${CALENDAR_API_URL}?sendUpdates=none`, 'POST', googleEventBody(local))
+        const created = await tryWrite(local, () => calendarRequest(token, `${CALENDAR_API_URL}?sendUpdates=none`, 'POST', googleEventBody(local)))
+        if (!created.ok) continue
+        const response = created.value
         updates.set(local.id, { ...local, googleCalendarId: response.id })
         mappings[response.id] = {
           itemId: local.id,
@@ -345,7 +363,12 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
             .map(([, item]) => item),
         ])
       }
-      setStatus('connected')
+      if (failures.length) {
+        setError(syncFailureSummary(failures))
+        setStatus('error')
+      } else {
+        setStatus('connected')
+      }
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : 'Google Calendar sync failed.')
       setStatus('error')

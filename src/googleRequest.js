@@ -54,3 +54,11 @@ export async function withRetries(attempt, { method, retries = 2, delayMs = 1500
     }
   }
 }
+
+// Message shown when the sync finished but some events could not be written to Google.
+export function syncFailureSummary(failures) {
+  const [first] = failures
+  const others = failures.length - 1
+  const more = others ? ` (and ${others} more event${others === 1 ? '' : 's'})` : ''
+  return `Google events were imported, but "${first.title}"${more} could not be sent to Google: ${first.message}`
+}

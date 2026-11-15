@@ -72,3 +72,12 @@ test('requests wait until a hidden page is visible again', async () => {
   assert.equal(resolved, true)
   assert.equal(listeners.size, 0)
 })
+
+test('partial sync failures name the first event and count the rest', async () => {
+  const { syncFailureSummary } = await import('../src/googleRequest.js')
+  assert.equal(
+    syncFailureSummary([{ title: 'Odd', message: 'bad time' }]),
+    'Google events were imported, but "Odd" could not be sent to Google: bad time',
+  )
+  assert.match(syncFailureSummary([{ title: 'A', message: 'x' }, { title: 'B', message: 'y' }, { title: 'C', message: 'z' }]), /"A" \(and 2 more events\)/)
+})
