@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isFixedEvent } from './plannerDates'
-import { googleEventBody, googleSnapshot, itemFromGoogleEvent, localSnapshot } from './googleCalendarEvents'
+import { fullSyncWindow, googleEventBody, googleSnapshot, isInSyncWindow, itemFromGoogleEvent, localSnapshot } from './googleCalendarEvents'
 import { AUTHORIZATION_TIMEOUT_MS, describeAuthorizationError, timeoutMessage, withTimeout } from './googleAuthErrors'
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID
@@ -122,22 +122,30 @@ async function getGoogleAccountEmail(token) {
   return profile.email.toLowerCase()
 }
 
-async function listGoogleEvents(token, syncToken = '') {
+async function listGoogleEvents(token, syncToken = '', range = null) {
   const events = []
   let pageToken = ''
   do {
     const url = new URL(CALENDAR_API_URL)
-    url.searchParams.set('maxResults', '2500')
+    url.searchParams.set('maxResults', '250')
     url.searchParams.set('showDeleted', 'true')
     url.searchParams.set('singleEvents', 'true')
     if (syncToken) url.searchParams.set('syncToken', syncToken)
+    else if (range) {
+      // Full syncs are limited to a date window: listing a whole calendar history with
+      // every recurring occurrence expanded is slow enough to time out.
+      url.searchParams.set('timeMin', range.timeMin)
+      url.searchParams.set('timeMax', range.timeMax)
+    }
     if (pageToken) url.searchParams.set('pageToken', pageToken)
     const result = await calendarRequest(token, url)
     events.push(...(result.items || []))
     pageToken = result.nextPageToken || ''
     if (!pageToken) {
-      if (!result.nextSyncToken) throw new Error('Google Calendar did not return a sync cursor.')
-      return { events, nextSyncToken: result.nextSyncToken }
+      // A date-limited full sync may not return a cursor; the next sync is then a
+      // windowed full sync again, which is still fast.
+      if (!result.nextSyncToken && syncToken) throw new Error('Google Calendar did not return a sync cursor.')
+      return { events, nextSyncToken: result.nextSyncToken || '' }
     }
   } while (pageToken)
   throw new Error('Google Calendar did not return a sync cursor.')
@@ -197,13 +205,14 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
       const state = syncStateRef.current || readSyncState(syncAccountIdRef.current || accountId)
       const mappings = { ...state.mappings }
       let fullSync = !state.nextSyncToken
+      const syncWindow = fullSyncWindow(new Date())
       let batch
       try {
-        batch = await listGoogleEvents(token, state.nextSyncToken || '')
+        batch = await listGoogleEvents(token, state.nextSyncToken || '', syncWindow)
       } catch (listError) {
         if (!state.nextSyncToken || !(listError instanceof Error) || !listError.message.includes('(410)')) throw listError
         fullSync = true
-        batch = await listGoogleEvents(token)
+        batch = await listGoogleEvents(token, '', syncWindow)
       }
       const googleEvents = batch.events
       const googleById = new Map(googleEvents.map((event) => [event.id, event]))
@@ -230,6 +239,10 @@ export function useGoogleCalendarSync({ items, setItems, accountId }) {
               mappings[googleId] = { itemId: local.id, snapshot: localData, updatedAt: updated.updated }
             }
           }
+          continue
+        }
+        if (!remote && fullSync && local && !isInSyncWindow(local, syncWindow)) {
+          // Outside the full-sync window, a missing event is unknown rather than deleted.
           continue
         }
         if (!remote || cancelledIds.has(googleId)) {

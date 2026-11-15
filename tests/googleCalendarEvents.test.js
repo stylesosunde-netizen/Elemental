@@ -68,3 +68,21 @@ test('local snapshots normalize optional event data for sync comparisons', () =>
     description: '',
   })
 })
+
+test('full syncs cover the last 90 days through the next year', async () => {
+  const { fullSyncWindow } = await import('../src/googleCalendarEvents.js')
+  const now = new Date(2026, 10, 15, 15, 0)
+  const window = fullSyncWindow(now)
+  assert.equal(window.startKey, dateKey(new Date(2026, 7, 17)))
+  assert.equal(window.endKey, dateKey(new Date(2027, 10, 15)))
+  assert.ok(new Date(window.timeMin) < now && new Date(window.timeMax) > now)
+})
+
+test('events outside the full-sync window are recognised so they are not removed', async () => {
+  const { fullSyncWindow, isInSyncWindow } = await import('../src/googleCalendarEvents.js')
+  const window = fullSyncWindow(new Date(2026, 10, 15))
+  assert.equal(isInSyncWindow({ date: '2026-11-20' }, window), true)
+  assert.equal(isInSyncWindow({ date: '2025-01-10' }, window), false)
+  assert.equal(isInSyncWindow({ date: '2028-01-10' }, window), false)
+  assert.equal(isInSyncWindow({ date: '2026-08-10', endDate: '2026-08-20' }, window), true)
+})

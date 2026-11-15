@@ -74,3 +74,27 @@ export function itemFromGoogleEvent(event, snapshot) {
     xpAwarded: false,
   }
 }
+
+export const FULL_SYNC_PAST_DAYS = 90
+export const FULL_SYNC_FUTURE_DAYS = 365
+
+// Date range used for full (non-incremental) Google Calendar syncs.
+export function fullSyncWindow(now) {
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - FULL_SYNC_PAST_DAYS)
+  const end = new Date(now)
+  end.setHours(0, 0, 0, 0)
+  end.setDate(end.getDate() + FULL_SYNC_FUTURE_DAYS)
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    startKey: dateKey(start),
+    endKey: dateKey(end),
+  }
+}
+
+export function isInSyncWindow(item, window) {
+  const lastDate = item.endDate && item.endDate > item.date ? item.endDate : item.date
+  return lastDate >= window.startKey && item.date < window.endKey
+}
