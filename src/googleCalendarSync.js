@@ -7,6 +7,7 @@ const TOKEN_SCOPE = 'https://www.googleapis.com/auth/calendar.events openid emai
 const SYNC_KEY_PREFIX = 'elemental-google-calendar-sync-v1'
 const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 const CALENDAR_API_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+const CALENDAR_REQUEST_TIMEOUT_MS = 30_000
 
 let identityScriptPromise
 
@@ -73,21 +74,35 @@ function writeSyncState(accountId, state) {
 }
 
 async function calendarRequest(token, url, method = 'GET', body) {
-  const response = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  })
-  if (!response.ok) {
-    const details = await response.json().catch(() => null)
-    const message = details?.error?.message || response.statusText
-    throw new Error(`Google Calendar request failed (${response.status}): ${message}`)
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), CALENDAR_REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const details = await response.json().catch(() => null)
+      const message = details?.error?.message || response.statusText
+      throw new Error(`Google Calendar request failed (${response.status}): ${message}`)
+    }
+    if (response.status === 204) return null
+    return await response.json()
+  } catch (requestError) {
+    if (requestError instanceof Error && requestError.name === 'AbortError') {
+      throw new Error('Google Calendar request timed out. Check your connection and try syncing again.', {
+        cause: requestError,
+      })
+    }
+    throw requestError
+  } finally {
+    window.clearTimeout(timeout)
   }
-  if (response.status === 204) return null
-  return response.json()
 }
 
 async function getGoogleAccountEmail(token) {
